@@ -1,0 +1,28 @@
+digraph B {
+graph[rankdir=TB, bgcolor="white", pad=0.32, nodesep=0.46, ranksep=0.65, dpi=165, fontname="Microsoft YaHei", fontsize=17, labelloc=t, label="② 充电订单与计费｜局部 E-R 图\n线端数字表示该端基数；虚线表示待对齐。 A/D 虚线为业务关联；正式外键待对齐。"];
+node[shape=plain,fontname="Microsoft YaHei"];
+edge[dir=none,color="#60738b",fontcolor="#34465c",fontname="Microsoft YaHei",fontsize=11,labeldistance=1.55];
+station [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#E6EBF1"><B>场站</B>　<FONT POINT-SIZE="10">station</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">station_id · operator_id · status</FONT></TD></TR></TABLE>>];
+charging_gun [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#E6EBF1"><B>充电枪</B>　<FONT POINT-SIZE="10">charging_gun</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">gun_id · pile_id · station_id · parking_space_id</FONT></TD></TR></TABLE>>];
+tariff_rule [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>费率版本</B>　<FONT POINT-SIZE="10">tariff_rule</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">rule_id · station_id · valid_from · valid_until</FONT></TD></TR></TABLE>>];
+tariff_band [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>费率时段</B>　<FONT POINT-SIZE="10">tariff_band</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">band_id · rule_id · label · energy_price</FONT></TD></TR></TABLE>>];
+charging_order [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>充电订单</B>　<FONT POINT-SIZE="10">charging_order</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">order_id · gun_id · user_id · vehicle_id · state</FONT></TD></TR></TABLE>>];
+meter_reading [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>电表读数</B>　<FONT POINT-SIZE="10">meter_reading</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">order_id + read_at · cumulative_kwh</FONT></TD></TR></TABLE>>];
+order_fee_detail [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>分段费用</B>　<FONT POINT-SIZE="10">order_fee_detail</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">fee_id · order_id · band_id · kwh · energy_amount</FONT></TD></TR></TABLE>>];
+payment_record [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>支付流水</B>　<FONT POINT-SIZE="10">payment_record</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">payment_id · order_id · amount · occurred_at</FONT></TD></TR></TABLE>>];
+refund_record [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>退款流水</B>　<FONT POINT-SIZE="10">refund_record</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">refund_id · payment_id · amount · occurred_at</FONT></TD></TR></TABLE>>];
+d_user [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#E6EBF1"><B>D 用户</B>　<FONT POINT-SIZE="10">跨模块</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">user_id</FONT></TD></TR></TABLE>>];
+d_vehicle [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#E6EBF1"><B>D 车辆</B>　<FONT POINT-SIZE="10">跨模块</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">vehicle_id</FONT></TD></TR></TABLE>>];
+a_admission [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#E6EBF1"><B>A 到站资格</B>　<FONT POINT-SIZE="10">跨模块</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">channel + admission_id</FONT></TD></TR></TABLE>>];
+station -> tariff_rule [label="配置费率版本", taillabel="1", headlabel="0..N", style=solid];
+tariff_rule -> tariff_band [label="划分费率时段", taillabel="1", headlabel="0..N", style=solid];
+charging_gun -> charging_order [label="承载充电订单", taillabel="1", headlabel="0..N", style=solid];
+charging_order -> meter_reading [label="记录读数", taillabel="1", headlabel="0..N", style=solid];
+charging_order -> order_fee_detail [label="生成分段明细", taillabel="1", headlabel="0..N", style=solid];
+tariff_band -> order_fee_detail [label="引用计价时段", taillabel="1", headlabel="0..N", style=solid];
+charging_order -> payment_record [label="记录支付及补缴", taillabel="1", headlabel="0..N", style=solid];
+payment_record -> refund_record [label="追溯成功退款", taillabel="1", headlabel="0..N", style=solid];
+d_user -> charging_order [label="用户下单", taillabel="1", headlabel="0..N", style=dashed];
+d_vehicle -> charging_order [label="车辆充电", taillabel="1", headlabel="0..N", style=dashed];
+a_admission -> charging_order [label="消费单次资格", taillabel="0..1", headlabel="0..1", style=dashed];
+}

@@ -1,0 +1,13 @@
+digraph B {
+      graph[rankdir=TB, bgcolor="white", pad="0.14", nodesep="0.23", ranksep="0.32", dpi=155, fontname="Microsoft YaHei"];
+      node[shape=box,style="rounded,filled",color="#96a9ba",fillcolor="#f0f4fa",fontname="Microsoft YaHei",fontsize=13,margin="0.12,0.08"];
+      edge[color="#667789",fontcolor="#344256",fontname="Microsoft YaHei",fontsize=11,arrowsize=0.65];
+    
+ subgraph cluster_scope {label="场站与充电设施"; style=rounded; color="#cad1d9";
+ a[label="登记场站与设备"]; b[label="投运验收"]; c[label="查枪和状态"]; d[label="申请档案变更"]; e[label="心跳与离线待办"];
+ node[shape=ellipse];}
+ op[label="运营人员",shape=box]; worker[label="运维人员",shape=box];
+ car[label="车主",shape=box]; dev[label="充电桩",shape=box];
+ op->a; op->b; op->d; worker->d; car->c; worker->e; dev->e;
+ 
+}

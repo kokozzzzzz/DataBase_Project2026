@@ -1,0 +1,11 @@
+digraph B {
+      graph[rankdir=TB, bgcolor="white", pad="0.14", nodesep="0.23", ranksep="0.32", dpi=155, fontname="Microsoft YaHei"];
+      node[shape=box,style="rounded,filled",color="#96a9ba",fillcolor="#f0f4fa",fontname="Microsoft YaHei",fontsize=13,margin="0.12,0.08"];
+      edge[color="#667789",fontcolor="#344256",fontname="Microsoft YaHei",fontsize=11,arrowsize=0.65];
+    
+ x[label="充电桩\n角色"]; y[label="心跳接收\n边界"]; z[label="更新最后心跳\n控制"]; 
+ t[label="扫描任务\n控制"]; p[label="充电桩\n实体"]; l[label="状态历史和待办\n实体"];
+ w[label="运维待办页\n边界"]; o[label="运维人员\n角色"];
+ x->y->z->p; t->p[label="比对阈值"]; t->l[label="标离线并去重"]; o->w->l;
+ 
+}
