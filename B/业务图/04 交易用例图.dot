@@ -1,0 +1,12 @@
+digraph B {
+      graph[rankdir=TB, bgcolor="white", pad="0.14", nodesep="0.23", ranksep="0.32", dpi=155, fontname="Microsoft YaHei"];
+      node[shape=box,style="rounded,filled",color="#96a9ba",fillcolor="#f0f4fa",fontname="Microsoft YaHei",fontsize=13,margin="0.12,0.08"];
+      edge[color="#667789",fontcolor="#344256",fontname="Microsoft YaHei",fontsize=11,arrowsize=0.65];
+    
+ subgraph cluster_scope {label="充电订单与计费"; style=rounded; color="#cad1d9";
+ o[label="现场或资格开单"]; t[label="结束并分段核价"]; p[label="确认账单和分次支付"];
+ r[label="断连人工复核"]; f[label="部分退款"];}
+ a[label="车主",shape=box]; x[label="模拟设备",shape=box]; c[label="客服或运营",shape=box];
+ a->o; a->p; x->t; c->r; c->f;
+ 
+}

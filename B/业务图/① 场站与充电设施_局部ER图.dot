@@ -1,0 +1,25 @@
+digraph B {
+graph[rankdir=TB, bgcolor="white", pad=0.32, nodesep=0.46, ranksep=0.65, dpi=165, fontname="Microsoft YaHei", fontsize=17, labelloc=t, label="① 场站与充电设施｜局部 E-R 图\n线端数字表示该端基数；虚线表示待对齐。 状态历史每条仅指向桩或枪之一；停运枪为空表示全站。"];
+node[shape=plain,fontname="Microsoft YaHei"];
+edge[dir=none,color="#60738b",fontcolor="#34465c",fontname="Microsoft YaHei",fontsize=11,labeldistance=1.55];
+operator [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>运营商</B>　<FONT POINT-SIZE="10">operator</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">operator_id · name</FONT></TD></TR></TABLE>>];
+station [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>场站</B>　<FONT POINT-SIZE="10">station</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">station_id · operator_id · status</FONT></TD></TR></TABLE>>];
+charging_pile [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>充电桩</B>　<FONT POINT-SIZE="10">charging_pile</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">pile_id · station_id · rated_kw · status</FONT></TD></TR></TABLE>>];
+parking_space [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>服务车位</B>　<FONT POINT-SIZE="10">parking_space</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">parking_space_id · station_id · code</FONT></TD></TR></TABLE>>];
+charging_gun [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>充电枪</B>　<FONT POINT-SIZE="10">charging_gun</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">gun_id · pile_id · station_id · parking_space_id</FONT></TD></TR></TABLE>>];
+equipment_status_log [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>设备状态历史</B>　<FONT POINT-SIZE="10">equipment_status_log</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">log_id · pile_id / gun_id · changed_at</FONT></TD></TR></TABLE>>];
+equipment_outage_plan [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>设备停运计划</B>　<FONT POINT-SIZE="10">equipment_outage_plan</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">outage_plan_id · station_id · gun_id · starts_at · ends_at</FONT></TD></TR></TABLE>>];
+equipment_change_request [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>设备变更申请</B>　<FONT POINT-SIZE="10">equipment_change_request</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">request_id · pile_id · state</FONT></TD></TR></TABLE>>];
+equipment_offline_task [label=<<TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7"><TR><TD BGCOLOR="#D9EDF6"><B>离线待办</B>　<FONT POINT-SIZE="10">equipment_offline_task</FONT></TD></TR><TR><TD><FONT POINT-SIZE="10">task_id · pile_id · closed_at</FONT></TD></TR></TABLE>>];
+operator -> station [label="运营归属", taillabel="1", headlabel="0..N", style=solid];
+station -> charging_pile [label="部署设备", taillabel="1", headlabel="0..N", style=solid];
+station -> parking_space [label="设置车位", taillabel="1", headlabel="0..N", style=solid];
+charging_pile -> charging_gun [label="配有充电枪", taillabel="1", headlabel="0..N", style=solid];
+parking_space -> charging_gun [label="绑定同站车位", taillabel="1", headlabel="0..1", style=dashed];
+charging_pile -> equipment_status_log [label="记录桩状态", taillabel="0..1", headlabel="0..N", style=solid];
+charging_gun -> equipment_status_log [label="记录枪状态", taillabel="0..1", headlabel="0..N", style=solid];
+station -> equipment_outage_plan [label="指定停运场站", taillabel="1", headlabel="0..N", style=dashed];
+charging_gun -> equipment_outage_plan [label="限定停运到单枪", taillabel="0..1", headlabel="0..N", style=dashed];
+charging_pile -> equipment_change_request [label="申请档案变更", taillabel="1", headlabel="0..N", style=solid];
+charging_pile -> equipment_offline_task [label="生成离线待办", taillabel="1", headlabel="0..N", style=solid];
+}

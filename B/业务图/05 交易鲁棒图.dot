@@ -1,0 +1,11 @@
+digraph B {
+      graph[rankdir=TB, bgcolor="white", pad="0.14", nodesep="0.23", ranksep="0.32", dpi=155, fontname="Microsoft YaHei"];
+      node[shape=box,style="rounded,filled",color="#96a9ba",fillcolor="#f0f4fa",fontname="Microsoft YaHei",fontsize=13,margin="0.12,0.08"];
+      edge[color="#667789",fontcolor="#344256",fontname="Microsoft YaHei",fontsize=11,arrowsize=0.65];
+    
+ car[label="车主\n角色"]; front[label="开单和账单页\n边界"]; open[label="开单校验与事务\n控制"];
+ res[label="枪与 A 的资格\n实体"]; order[label="充电订单\n实体"]; end[label="结束核价\n控制"];
+ meter[label="表读数与时段费率\n实体"]; out[label="分段费用\n实体"]; pay[label="支付与退款\n实体"];
+ car->front->open; open->res; open->order; front->end; end->order; end->meter; end->out; front->pay;
+ 
+}
