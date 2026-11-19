@@ -16,7 +16,7 @@
 - 平台与运营商之间的结算对账
 - 预约排队、备件库存、公告通知等新增业务的跨模块协作
 
-**当前阶段**：Day 1 需求分析与概念设计。项目骨架、数据字典、业务流程图与 Python 依赖清单已建立；关系模式、DDL、SQL 与 Python 持久层代码待实现。
+**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。④用户与会员运营的 9 张独立核心表已在 MySQL 8.0.46 中完成建表、测试数据、约束、查询和事务验证；依赖 B 模块的 3 张跨模块表，以及其他业务线的实现进度，以各负责人最新提交为准。
 
 ## 业务范围
 
@@ -50,9 +50,9 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| 数据库 | MySQL（具体版本第一天组内确认） |
+| 数据库 | MySQL 8.0.46 / InnoDB / utf8mb4 |
 | 开发语言 | Python 3.13（当前参考环境，建议 3.11+） |
-| 持久层方案 | SQLAlchemy 2.1.8 + PyMySQL 1.2.4 |
+| 持久层方案 | PyMySQL 1.2.4（已实现）+ SQLAlchemy 2.1.8（依赖已固定，按模块需要使用） |
 | 依赖管理 | pip + `requirements.txt` |
 | 版本管理 | Git + GitHub，一个公共仓库 |
 | 设计工具 | E-R 图 / UML 类图（PowerDesigner、Visio、StarUML 等） |
@@ -95,7 +95,7 @@
 | ① 场站与充电设施 | `operator`、`station`、`charging_pile`、`charging_gun`、`parking_space`、`equipment_status_log`、`equipment_outage_plan` |
 | ② 充电订单与计费 | `charging_order`、`tariff_rule`、`order_fee_detail`、`payment_record`、`refund_record` |
 | ③ 设备监控与故障工单 | `device_telemetry`、`alarm`、`maintenance_work_order` |
-| ④ 用户与会员运营 | `user`、`vehicle`、`membership_record`、`promotion`、`coupon`、`coupon_redemption`、`enterprise_customer`、`fleet`、`fleet_vehicle`、`fleet_quota_record` |
+| ④ 用户与会员运营 | `membership_level`、`user`、`vehicle`、`membership_record`、`promotion`、`promotion_station`、`coupon`、`coupon_redemption`、`enterprise_customer`、`fleet`、`fleet_vehicle`、`fleet_quota_record` |
 | ⑤ 结算与对账 | `settlement_statement`、`settlement_detail`、`reconciliation_difference`、`reconciliation_confirmation`、`invoice_record` |
 | ⑥ 预约、排队与到站 | `charging_reservation`、`queue_record`、`arrival_checkin`、`parking_occupancy` |
 | ⑦ 备件库存与领用 | `spare_part`、`warehouse`、`inventory`、`inventory_transaction`、`work_order_part` |
@@ -113,11 +113,11 @@
 
 ```text
 .
-├── docs/            # 数据字典、任务分工、执行方案、业务流程图
+├── app/             # Python 数据库连接、持久层、服务层和演示入口
+├── docs/            # 数据字典、模块说明、任务分工、执行方案和业务流程图
+├── sql/             # 各成员 DDL、测试数据、业务查询与验证脚本
 ├── target/          # 课程设计任务书与小组思路文档
-├── sql/             # DDL、查询 SQL、视图、存储过程与触发器（计划）
-├── src/             # Python 持久层与核心业务代码（计划）
-├── tests/           # 持久层、事务与并发测试（计划）
+├── tests/           # 持久层与事务单元测试
 ├── requirements.txt # Python 依赖清单
 └── README.md
 ```
@@ -132,6 +132,37 @@
 | [四人四天任务分工计划](docs/四人四天任务分工计划_八条业务线_MySQL_Python.docx) | 四天总览、逐日任务、验收清单与风险应对 |
 | [第一天详细执行方案](docs/第一天详细执行方案_八条业务线_MySQL_Python.docx) | Day 1 时间安排、跨模块规则、公共编号与各成员任务 |
 | [整体业务流程图](docs/新能源汽车充电桩平台_八条业务线整体业务流程图.png) | 八条业务线及跨模块交接关系 |
+| [D 模块开发说明](docs/d/README.md) | ④用户会员、⑤结算对账的状态、交付物、运行方式和待确认接口 |
+| [④业务线 DDL 说明](docs/d/04_membership.md) | ④核心表与跨模块表的设计说明、执行顺序和关键约束 |
+
+## 当前可验证成果
+
+④用户与会员运营已完成可独立开发部分：
+
+- 9 张核心表均已在 `charging_platform` 创建，使用 InnoDB 与 `utf8mb4_0900_ai_ci`
+- 9 张核心表各提交 20 条虚构测试数据，共 180 条
+- 主键、外键、唯一约束、CHECK 约束及 ID 类型检查全部通过
+- 约束测试 T01～T08 全部 PASS，9 条核心业务查询结果符合预期
+- Python 可连接 MySQL 8.0.46 并识别 9/9 张核心表
+- 会员等级变更使用行锁和事务，同时更新当前等级与历史记录；真实数据库回滚演示 PASS
+- 车辆加入/退出车队使用车辆行锁串行化并发请求；调车事务及回滚演示 PASS
+- 优惠活动使用 `Decimal` 计算固定减免和百分比折扣；100 元订单最优活动实测优惠 24 元
+- ④业务线已创建 3 个实用视图和 1 个只读优惠试算存储过程，数据库验收通过
+- ④最终综合回归 F01～F08 全部 PASS，核心表、约束、业务一致性和敏感字段检查正常
+- 当前 Python 单元测试共 23 项，全部通过
+
+快速验证：
+
+```powershell
+Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
+.\.venv\Scripts\python.exe -m app.run_membership_demo
+.\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_promotion_demo
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+详细说明见 [D 模块开发说明](docs/d/README.md)。
 
 ## 开发计划
 
@@ -160,7 +191,7 @@
 
 以下事项需组内讨论或向指导教师确认，确认后更新数据字典与本文档：
 
-- MySQL 具体版本（Python 3.13 + SQLAlchemy 2.1.8 + PyMySQL 1.2.4 已通过 `requirements.txt` 固定）
+- B、C、A 模块的最终表结构、DDL 执行顺序及跨模块外键接入时间
 - 新增三条业务线的考核口径（视图、存储过程/触发器数量）
 - 设备停运计划的唯一登记责任人（B 或 C）
 - 预约迟到保留时长、叫号保留时长与现场排队优先级
@@ -186,7 +217,7 @@
 | --- | --- | --- |
 | Git | 任意较新版本 | 拉取代码与日常提交 |
 | Python | 3.13（参考环境，建议 3.11+） | 运行持久层与测试 |
-| MySQL | 版本以组内 Day 1 决议为准 | 本地数据库服务 |
+| MySQL | 8.0.46 | 本地数据库服务 |
 
 ### 2. 克隆仓库
 
@@ -258,15 +289,21 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
 
 ### 5. 配置数据库连接
 
-1. 启动本地 MySQL，创建项目数据库（库名为占位，最终以组内统一为准）：
+1. 启动本地 MySQL，创建全组统一数据库：
 
    ```sql
    CREATE DATABASE charging_platform
      DEFAULT CHARACTER SET utf8mb4
-     COLLATE utf8mb4_unicode_ci;
+     COLLATE utf8mb4_0900_ai_ci;
    ```
 
-2. 在仓库根目录创建 `.env`，按组内约定填写连接信息：
+2. 在仓库根目录复制示例配置，并填写本机密码：
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   `.env` 内容如下：
 
    ```dotenv
    DB_HOST=127.0.0.1
@@ -276,15 +313,22 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
    DB_NAME=charging_platform
    ```
 
-3. `.env` 已被 `.gitignore` 忽略，**不要提交**，也不要把密码写进代码或文档。变量名以 `src/` 首次提交的配置模块为准，当前为约定草案。
+3. `.env` 已被 `.gitignore` 忽略，**不要提交**，也不要把密码写进代码或文档。变量名由 `app/database/config.py` 统一读取。
 
 ### 6. 初始化数据库结构
 
-当前 `sql/` 尚未提交 DDL。Day 2 建表脚本落地后，按实际文件名执行，例如：
+④业务线的独立核心表可在 MySQL 客户端中按顺序执行：
 
-```bash
-mysql -u root -p charging_platform < sql/00_schema.sql
+```sql
+SOURCE sql/D/04_membership_core.sql;
+SOURCE sql/D/04_membership_verify.sql;
+SOURCE sql/D/04_membership_seed_core.sql;
+-- 核对 9 张表均为 20 行后手动执行 COMMIT;
+SOURCE sql/D/04_membership_constraint_tests.sql;
+SOURCE sql/D/04_membership_business_queries.sql;
 ```
+
+`04_membership_integration.sql` 依赖 B 模块的 `station` 和 `charging_order`，必须等接口表创建并复核字段类型后再执行。
 
 ### 7. 设置 Git 身份并同步代码
 
@@ -318,8 +362,40 @@ git push
 
 ```bash
 #简化版流程（部分）
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m venv .venv #创建venv虚拟环境
+.\. venv\Scripts\Activate.ps1 #进入venv虚拟环境
+pip install -r requirements.txt #下载requirements.txt中的依赖
+
+如果你pip了其他依赖，请执行：
+pip freeze > requirements.txt #将它们覆盖写入到 requirements.txt 文件中
+```
+
+```bash
+#简化版github合作流程
+git switch dev #切换至dev分支
+git pull origin dev #拉取最新代码
+git switch -c xxx(例如：koko) #创建并切换到你的新分支
+
+……进行开发
+
+git add . #添加修改
+git commit -m "feat:完成xxx功能的具体描述" #提交
+git push -u origin koko #推送到远程github
+
+通过pull request合并分支到dev上，
+写标题：例如 feat: 完成xxx功能。
+写描述：简单写两句改了什么，怎么测试的。
+选 Reviewer：选择你的队友或组长来审查代码。
+
+合并完成后，页面上会出现一个 "Delete branch" 按钮，点它，删除github上这个功能分支，保持仓库干净。
+
+回到你的电脑终端：
+git switch dev
+git pull origin dev
+
+git branch -d koko #删除该功能分支
+
+循环回第一步
+
 ```
 
