@@ -145,7 +145,8 @@
 - 约束测试 T01～T08 全部 PASS，9 条核心业务查询结果符合预期
 - Python 可连接 MySQL 8.0.46 并识别 9/9 张核心表
 - 会员等级变更使用行锁和事务，同时更新当前等级与历史记录；真实数据库回滚演示 PASS
-- 当前 Python 单元测试共 12 项，全部通过
+- 车辆加入/退出车队使用车辆行锁串行化并发请求；调车事务及回滚演示 PASS
+- 当前 Python 单元测试共 16 项，全部通过
 
 快速验证：
 
@@ -153,6 +154,7 @@
 Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_demo
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 

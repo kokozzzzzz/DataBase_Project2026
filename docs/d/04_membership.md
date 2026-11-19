@@ -36,6 +36,20 @@
     - 依据等级 `sort_order` 自动判断 `UPGRADE`、`DOWNGRADE` 或 `ADJUST`。
 11. `app/run_membership_transaction_demo.py`
     - 在真实数据库内验证两张表同时变更，然后主动 `ROLLBACK`，不保留演示记录。
+12. `app/services/fleet_service.py`
+    - 通过锁定车辆主记录串行化同一车辆的并发请求，保证最多一条 `ACTIVE` 车队关系。
+    - 退出时保留历史关联并填写 `left_at`，加入时校验车辆、车队和企业状态。
+13. `app/run_fleet_transaction_demo.py`
+    - 在同一事务中退出原车队、加入目标车队并验证，完成后主动 `ROLLBACK`。
+
+## 已完成验收
+
+- 核心表 9/9 创建成功，每表 20 条测试数据并已提交。
+- DDL 结构检查、约束测试 T01～T08、业务查询 Q01～Q09 均通过。
+- Python 连接验证识别 MySQL 8.0.46、`charging_platform` 和 9/9 张核心表。
+- 会员等级事务演示在回滚后恢复原等级且不保留历史记录，PASS。
+- 车队调车事务演示保证事务内仅一条 `ACTIVE` 关系，回滚后恢复原车队，PASS。
+- Python 单元测试共 16 项，全部通过。
 
 两份脚本合计对应④业务线规划的 12 张表。
 

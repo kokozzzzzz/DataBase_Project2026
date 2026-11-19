@@ -13,7 +13,7 @@ D同学
 
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
-| ④ 用户与会员运营 | 核心部分已实现并实测 | 9 张独立核心表、测试数据、约束测试、业务查询、Python 持久层与会员等级事务已通过；3 张跨模块表等待 B 的依赖表后联调 |
+| ④ 用户与会员运营 | 核心部分已实现并实测 | 9 张独立核心表、测试数据、约束测试、业务查询、Python 持久层、会员等级事务和车队车辆事务已通过；3 张跨模块表等待 B 的依赖表后联调 |
 | ⑤ 结算与对账 | 设计中 | 仅完成实体规划，DDL 与应用层未开始，依赖 B 的订单、支付和退款接口最终口径 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
@@ -33,8 +33,10 @@ D同学
 | `sql/D/04_membership_business_queries.sql` | 9 条核心业务只读查询与验收摘要 |
 | `app/database/` | 连接配置、连接上下文、只读持久层 |
 | `app/services/membership_service.py` | 会员等级变更事务服务 |
+| `app/services/fleet_service.py` | 车辆加入/退出车队事务服务 |
 | `app/run_membership_demo.py` | 连接与持久层演示入口 |
 | `app/run_membership_transaction_demo.py` | 真实数据库事务回滚演示入口 |
+| `app/run_fleet_transaction_demo.py` | 真实数据库调车事务回滚演示入口 |
 | `tests/` | 配置、持久层、事务服务的单元测试（不连接真实数据库） |
 
 ## 5. 已完成验收
@@ -52,7 +54,8 @@ D同学
 | 核心业务查询 | Q01～Q09 执行成功；车辆有效车队冲突为 0，会员当前等级与最新历史全部 MATCH |
 | Python 真实连接 | MySQL 8.0.46 / `charging_platform` / 核心表 9/9 |
 | 会员等级事务 | 事务内用户等级和历史同时变化，ROLLBACK 后恢复原值，PASS |
-| Python 单元测试 | 12 passed |
+| 车队车辆事务 | 事务内退出 60001、加入 60002 且仅一条 ACTIVE；ROLLBACK 后恢复 60001，PASS |
+| Python 单元测试 | 16 passed |
 
 ## 6. 数据库实体
 
@@ -96,7 +99,8 @@ D同学
 8. `fleet_vehicle` 使用代理主键保存加入/退出历史；同一车辆仅有一条 ACTIVE 关联的规则由业务事务或触发器保证。
 9. `promotion.total_quantity` 用 `NULL` 表示不限量，避免与 `0` 语义混淆。
 10. 会员等级变更事务使用 `SELECT ... FOR UPDATE` 锁定用户行，按等级 `sort_order` 自动判定 `UPGRADE`/`DOWNGRADE`/`ADJUST`，两步写入由调用方统一提交或回滚。
-11. 跨表业务校验（活动为 `SELECTED` 时至少关联一个场站、券是否属于订单用户等）放在事务性业务代码或存储过程中。
+11. 车队车辆事务统一先锁定 `vehicle` 主记录，再检查或更新有效关系，保证同一车辆最多一条 `ACTIVE` 车队关系；退出只关闭关系，不删除历史。
+12. 跨表业务校验（活动为 `SELECTED` 时至少关联一个场站、券是否属于订单用户等）放在事务性业务代码或存储过程中。
 
 ## 8. 执行与运行方式
 
@@ -123,6 +127,7 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_demo
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
