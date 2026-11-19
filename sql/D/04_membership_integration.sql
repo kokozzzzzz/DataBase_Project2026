@@ -40,7 +40,7 @@ CREATE TABLE coupon (
     UNIQUE KEY uk_coupon_code (coupon_code),
     KEY idx_coupon_promotion (promotion_id),
     KEY idx_coupon_user_status_time (user_id, status, valid_to),
-    KEY idx_coupon_locked_order (locked_order_id),
+    UNIQUE KEY uk_coupon_locked_order (locked_order_id),
     CONSTRAINT fk_coupon_promotion
         FOREIGN KEY (promotion_id) REFERENCES promotion (promotion_id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
@@ -62,9 +62,16 @@ CREATE TABLE coupon (
             OR
             (status = 'LOCKED' AND locked_order_id IS NOT NULL AND locked_at IS NOT NULL AND used_at IS NULL)
             OR
-            (status = 'USED' AND used_at IS NOT NULL)
+            (status = 'USED'
+                AND locked_order_id IS NOT NULL
+                AND locked_at IS NOT NULL
+                AND used_at IS NOT NULL
+                AND used_at >= locked_at)
             OR
-            (status IN ('EXPIRED', 'CANCELLED') AND used_at IS NULL)
+            (status IN ('EXPIRED', 'CANCELLED')
+                AND locked_order_id IS NULL
+                AND locked_at IS NULL
+                AND used_at IS NULL)
         )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='用户持有的优惠券实例';
@@ -87,7 +94,7 @@ CREATE TABLE coupon_redemption (
         FOREIGN KEY (order_id) REFERENCES charging_order (order_id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT ck_redemption_discount
-        CHECK (discount_amount >= 0)
+        CHECK (discount_amount > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='优惠券成功核销记录';
 

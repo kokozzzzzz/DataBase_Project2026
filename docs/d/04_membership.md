@@ -2,7 +2,7 @@
 
 ## 本阶段目标
 
-把已确认的数据字典转换为 MySQL 8.0.46 可审查的建表脚本。本阶段只生成文件，不连接 MySQL、不创建数据库，也不执行 DDL。
+把已确认的数据字典转换为 MySQL 8.0.46 可执行、可验收的建表脚本，并完成核心表与 B 模块正式表结构的跨模块联调。
 
 ## 文件位置与执行顺序
 
@@ -12,6 +12,7 @@
 2. `sql/D/04_membership_integration.sql`
    - 创建活动适用场站、优惠券实例和优惠券核销，共 3 张跨模块表。
    - 必须等 B 模块创建 `station` 和 `charging_order` 后执行。
+   - 同一订单最多锁定一张券、最多成功核销一张券，分别由唯一约束保证。
 3. `sql/D/04_membership_verify.sql`
    - 只读检查表数量、引擎、字符集、主键、外键、检查约束和 ID 类型。
    - 可在执行核心脚本后重复运行，不修改数据。
@@ -58,6 +59,8 @@
     - 验证过程元数据、固定减免、百分比折扣、最低门槛和执行后行数。
 20. `sql/D/04_membership_final_verify.sql`
     - 对核心表、行数、约束、视图、存储过程、车队唯一性、等级一致性和敏感字段进行只读综合回归。
+21. `sql/D/04_membership_integration_verify.sql`
+    - 检查三张跨模块表、B 正式外键、ID 类型、约束数量和订单锁券/核销唯一性。
 
 ## 已完成验收
 
@@ -70,6 +73,9 @@
 - 3 个实用视图创建成功，敏感字段暴露为 0，当前测试数据均返回 20 行，PASS。
 - 只读优惠试算存储过程创建成功，固定减免、八折比例和门槛不足场景均通过。
 - Python 单元测试共 23 项，全部通过。
+- 3 张跨模块表已在 MySQL 8.0.46 创建成功：3 个主键、7 个外键、4 个唯一约束和 5 个 CHECK 约束全部通过验收。
+- `promotion_station.station_id`、`coupon.locked_order_id` 和 `coupon_redemption.order_id` 已连接 B 的正式场站、订单结构，3 个跨模块外键均通过。
+- `tests/verify_b_structure.py` 的 20 项 B–D 集成检查全部 PASS，测试事务已回滚，未留下样例数据。
 
 两份脚本合计对应④业务线规划的 12 张表。
 
@@ -93,7 +99,7 @@
 
 ## 后续运行方式
 
-待全组创建 `charging_platform` 且确认依赖表后，在仓库根目录登录 MySQL：
+在仓库根目录登录 MySQL：
 
 ```powershell
 mysql -u root -p
@@ -103,8 +109,14 @@ mysql -u root -p
 
 ```sql
 SOURCE sql/D/04_membership_core.sql;
-SOURCE sql/D/04_membership_integration.sql;
 SOURCE sql/D/04_membership_verify.sql;
+-- B 的 station、charging_order 创建完成后：
+SOURCE sql/D/04_membership_integration.sql;
+SOURCE sql/D/04_membership_integration_verify.sql;
 ```
 
-预期结果：④业务线共创建 12 张表，且所有主键、外键、唯一约束与检查约束创建成功。首次执行前应先确认数据库中不存在同名表；脚本不会删除或覆盖已有表。
+预期结果：④业务线共创建 12 张表，跨模块验收 I01～I06 全部 PASS。首次执行前应先确认数据库中不存在同名表；脚本不会删除或覆盖已有表。B–D 综合结构与事务回滚验证可在 PowerShell 中执行：
+
+```powershell
+.\.venv\Scripts\python.exe tests\verify_b_structure.py
+```

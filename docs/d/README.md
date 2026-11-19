@@ -13,7 +13,7 @@ D同学
 
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
-| ④ 用户与会员运营 | 核心部分已实现并实测 | 9 张独立核心表、测试数据、约束测试、业务查询、Python 持久层、会员等级事务、车队车辆事务和全场优惠计算已通过；3 张跨模块表等待 B 的依赖表后联调 |
+| ④ 用户与会员运营 | 12 张表结构及 B–D 联调已实测 | 9 张核心表及 3 张跨模块表均已在 MySQL 8.0.46 创建；核心数据、约束、查询、Python 持久层和 20 项 B–D 集成检查均已通过 |
 | ⑤ 结算与对账 | 设计中 | 仅完成实体规划，DDL 与应用层未开始，依赖 B 的订单、支付和退款接口最终口径 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
@@ -27,6 +27,7 @@ D同学
 | `docs/d/05_settlement.md` | ⑤ 结算与对账设计（待补充） |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
+| `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
 | `sql/D/04_membership_verify.sql` | 只读 DDL 验证脚本 |
 | `sql/D/04_membership_seed_core.sql` | 9 张核心表各 20 条虚构测试数据，需手动 COMMIT |
 | `sql/D/04_membership_constraint_tests.sql` | 唯一、非负、外键、时间、状态等约束测试，测试后统一 ROLLBACK |
@@ -48,7 +49,7 @@ D同学
 
 ## 5. 已完成验收
 
-截至当前提交前，④业务线独立核心部分已取得以下实测结果：
+截至当前提交前，④业务线核心部分及 B–D 跨模块结构已取得以下实测结果：
 
 | 检查项 | 结果 |
 | --- | --- |
@@ -66,6 +67,9 @@ D同学
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
 | Python 单元测试 | 23 passed |
+| 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
+| 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
+| B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
 
 ## 6. 数据库实体
 
@@ -130,10 +134,11 @@ SOURCE sql/D/04_membership_procedure_verify.sql;
 SOURCE sql/D/04_membership_final_verify.sql;
 ```
 
-跨模块表需等待 B 创建并确认依赖表后再执行：
+B 的 `station`、`charging_order` 创建并确认后，执行跨模块表及只读验收：
 
 ```sql
 SOURCE sql/D/04_membership_integration.sql;      -- 依赖 station、charging_order
+SOURCE sql/D/04_membership_integration_verify.sql;
 ```
 
 Python 侧：
@@ -145,6 +150,7 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
+.\.venv\Scripts\python.exe tests\verify_b_structure.py
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -152,10 +158,11 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 
 ## 9. 待确认事项
 
-1. 与 B 统一 `station`、`charging_order`、`payment_record`、`refund_record` 的主键和字段类型（当前按 `BIGINT UNSIGNED` 假定）。
+1. `station`、`charging_order` 及其跨模块外键类型已经按 B 正式结构确认；`payment_record`、`refund_record` 的结算使用口径仍需与 B 确认。
 2. 统一订单、支付和退款的数据关联方式及账期口径（时区、跨账期退款调整、分成）。
 3. 确认锁券与核销时点：支付成功时核销，支付失败、取消和退款后的恢复规则。
 4. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
-7. ⑤ 结算与对账的实体设计尚未定稿，需在 1–3 确认后启动 DDL。
+7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
+8. ⑤ 结算与对账的实体设计尚未定稿，需在 1～3 确认后启动 DDL。
