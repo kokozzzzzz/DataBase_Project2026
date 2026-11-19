@@ -31,6 +31,11 @@ D同学
 | `sql/D/04_membership_seed_core.sql` | 9 张核心表各 20 条虚构测试数据，需手动 COMMIT |
 | `sql/D/04_membership_constraint_tests.sql` | 唯一、非负、外键、时间、状态等约束测试，测试后统一 ROLLBACK |
 | `sql/D/04_membership_business_queries.sql` | 9 条核心业务只读查询与验收摘要 |
+| `sql/D/04_membership_views.sql` | 3 个核心业务视图，使用调用者权限且不暴露敏感检索字段 |
+| `sql/D/04_membership_views_verify.sql` | 视图数量、敏感字段和结果行数的只读验收 |
+| `sql/D/04_membership_procedure.sql` | 只读优惠试算存储过程，覆盖两类优惠、门槛和封顶 |
+| `sql/D/04_membership_procedure_verify.sql` | 存储过程元数据、计算结果和表行数验收 |
+| `sql/D/04_membership_final_verify.sql` | ④独立核心部分的只读综合回归脚本 |
 | `app/database/` | 连接配置、连接上下文、只读持久层 |
 | `app/services/membership_service.py` | 会员等级变更事务服务 |
 | `app/services/fleet_service.py` | 车辆加入/退出车队事务服务 |
@@ -58,6 +63,8 @@ D同学
 | 会员等级事务 | 事务内用户等级和历史同时变化，ROLLBACK 后恢复原值，PASS |
 | 车队车辆事务 | 事务内退出 60001、加入 60002 且仅一条 ACTIVE；ROLLBACK 后恢复 60001，PASS |
 | 优惠计算 | 100 元订单匹配 20 个全场活动；最优活动 40019，优惠 24 元、实付 76 元 |
+| 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
+| 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
 | Python 单元测试 | 23 passed |
 
 ## 6. 数据库实体
@@ -116,6 +123,11 @@ SOURCE sql/D/04_membership_verify.sql;          -- 预期 9 张核心表校验�
 SOURCE sql/D/04_membership_seed_core.sql;       -- 检查末尾统计后手动 COMMIT
 SOURCE sql/D/04_membership_constraint_tests.sql;
 SOURCE sql/D/04_membership_business_queries.sql;
+SOURCE sql/D/04_membership_views.sql;
+SOURCE sql/D/04_membership_views_verify.sql;
+SOURCE sql/D/04_membership_procedure.sql;        -- 首次成功后不要重复执行
+SOURCE sql/D/04_membership_procedure_verify.sql;
+SOURCE sql/D/04_membership_final_verify.sql;
 ```
 
 跨模块表需等待 B 创建并确认依赖表后再执行：

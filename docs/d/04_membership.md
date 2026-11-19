@@ -46,6 +46,18 @@
     - `PERCENTAGE` 表示实付比例，例如 `0.80` 表示八折，优惠金额为订单金额的 20%。
 15. `app/run_promotion_demo.py`
     - 只读筛选指定时点可用的 `ALL` 全场活动，并计算订单的最优优惠。
+16. `sql/D/04_membership_views.sql`
+    - 创建用户会员档案、企业车队有效车辆和当前全场活动 3 个实用视图。
+    - 使用 `SQL SECURITY INVOKER`，且不暴露手机号、车牌等密文或检索摘要。
+17. `sql/D/04_membership_views_verify.sql`
+    - 只读检查视图数量、敏感字段暴露、视图行数和样例结果。
+18. `sql/D/04_membership_procedure.sql`
+    - 创建只读优惠试算过程 `sp_calculate_promotion_quote`，覆盖固定减免、实付比例、门槛和封顶。
+    - 使用 `SQL SECURITY INVOKER` 和 `READS SQL DATA`，不修改任何业务表。
+19. `sql/D/04_membership_procedure_verify.sql`
+    - 验证过程元数据、固定减免、百分比折扣、最低门槛和执行后行数。
+20. `sql/D/04_membership_final_verify.sql`
+    - 对核心表、行数、约束、视图、存储过程、车队唯一性、等级一致性和敏感字段进行只读综合回归。
 
 ## 已完成验收
 
@@ -55,6 +67,8 @@
 - 会员等级事务演示在回滚后恢复原等级且不保留历史记录，PASS。
 - 车队调车事务演示保证事务内仅一条 `ACTIVE` 关系，回滚后恢复原车队，PASS。
 - 100 元订单筛选出 20 个全场活动，最优活动 40019 优惠 24 元、实付 76 元，PASS。
+- 3 个实用视图创建成功，敏感字段暴露为 0，当前测试数据均返回 20 行，PASS。
+- 只读优惠试算存储过程创建成功，固定减免、八折比例和门槛不足场景均通过。
 - Python 单元测试共 23 项，全部通过。
 
 两份脚本合计对应④业务线规划的 12 张表。
