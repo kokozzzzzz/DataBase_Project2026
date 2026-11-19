@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from app.database.membership_repository import list_user_profiles
+from app.database.membership_repository import (
+    list_available_global_promotions,
+    list_user_profiles,
+)
 
 
 class FakeCursor:
@@ -21,9 +26,9 @@ class FakeCursor:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def execute(self, sql: str, parameters: list[Any]) -> None:
+    def execute(self, sql: str, parameters: list[Any] | tuple[Any, ...]) -> None:
         self.sql = sql
-        self.parameters = parameters
+        self.parameters = list(parameters)
 
     def fetchall(self) -> list[dict[str, Any]]:
         return self.rows
@@ -68,3 +73,21 @@ def test_list_user_profiles_rejects_invalid_status() -> None:
 
     with pytest.raises(ValueError, match="用户状态"):
         list_user_profiles(connection, user_status="UNKNOWN")  # type: ignore[arg-type]
+
+
+def test_list_available_global_promotions_uses_time_and_amount_parameters() -> None:
+    cursor = FakeCursor([{"promotion_id": 40001}])
+    connection = FakeConnection(cursor)
+    query_time = datetime(2026, 11, 19, 12, 0, 0)
+    order_amount = Decimal("100.00")
+
+    rows = list_available_global_promotions(  # type: ignore[arg-type]
+        connection,
+        order_amount=order_amount,
+        at_time=query_time,
+    )
+
+    assert rows == [{"promotion_id": 40001}]
+    assert cursor.parameters == [query_time, query_time, order_amount]
+    assert "applicability_scope = 'ALL'" in cursor.sql
+    assert "minimum_spend <= %s" in cursor.sql

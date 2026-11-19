@@ -109,7 +109,7 @@ CREATE TABLE promotion (
     promotion_name VARCHAR(100) NOT NULL COMMENT '优惠活动名称',
     description TEXT NULL COMMENT '活动规则说明',
     discount_type VARCHAR(20) NOT NULL DEFAULT 'FIXED' COMMENT 'FIXED/PERCENTAGE',
-    discount_value DECIMAL(10,4) NOT NULL COMMENT '固定减免金额或折扣比例',
+    discount_value DECIMAL(10,4) NOT NULL COMMENT '固定减免金额或实付比例；0.80表示八折',
     minimum_spend DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '最低消费门槛，单位元',
     max_discount_amount DECIMAL(12,2) NULL COMMENT '百分比优惠封顶金额，单位元',
     applicability_scope VARCHAR(20) NOT NULL DEFAULT 'SELECTED' COMMENT 'ALL/SELECTED',

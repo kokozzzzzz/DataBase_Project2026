@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from pymysql.connections import Connection
@@ -90,6 +92,41 @@ def list_user_profiles(
     """
     parameters.extend((limit, offset))
 
+    with connection.cursor() as cursor:
+        cursor.execute(sql, parameters)
+        return list(cursor.fetchall())
+
+
+def list_available_global_promotions(
+    connection: Connection,
+    *,
+    order_amount: Decimal,
+    at_time: datetime,
+) -> list[dict[str, Any]]:
+    """查询指定时点和金额可用的全场活动，不读取尚未联调的场站关联表。"""
+
+    if order_amount < 0:
+        raise ValueError("order_amount 不能小于 0。")
+
+    sql = """
+        SELECT
+            promotion_id,
+            promotion_name,
+            discount_type,
+            discount_value,
+            minimum_spend,
+            max_discount_amount,
+            valid_from,
+            valid_to
+        FROM promotion
+        WHERE status = 'ACTIVE'
+          AND applicability_scope = 'ALL'
+          AND valid_from <= %s
+          AND valid_to > %s
+          AND minimum_spend <= %s
+        ORDER BY promotion_id
+    """
+    parameters = (at_time, at_time, order_amount)
     with connection.cursor() as cursor:
         cursor.execute(sql, parameters)
         return list(cursor.fetchall())

@@ -146,7 +146,8 @@
 - Python 可连接 MySQL 8.0.46 并识别 9/9 张核心表
 - 会员等级变更使用行锁和事务，同时更新当前等级与历史记录；真实数据库回滚演示 PASS
 - 车辆加入/退出车队使用车辆行锁串行化并发请求；调车事务及回滚演示 PASS
-- 当前 Python 单元测试共 16 项，全部通过
+- 优惠活动使用 `Decimal` 计算固定减免和百分比折扣；100 元订单最优活动实测优惠 24 元
+- 当前 Python 单元测试共 23 项，全部通过
 
 快速验证：
 
@@ -155,6 +156,7 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_demo
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_promotion_demo
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
