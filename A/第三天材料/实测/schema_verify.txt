@@ -1,0 +1,43 @@
+check_name	actual_value	result
+A01 MySQL version	8.0.46	PASS
+check_name	actual_value	result
+A02 database collation	utf8mb4_0900_ai_ci	PASS
+check_name	actual_value	result
+A03 A table count	10	PASS
+check_name	actual_value	result
+A04 A view count	8	PASS
+check_name	actual_value	result
+A05 A procedure count	14	PASS
+check_name	actual_value	result
+A06 A trigger count	13	PASS
+check_name	table_name	row_count	result
+A07 row counts	charging_reservation	20	PASS
+A07 row counts	reservation_status_log	25	PASS
+A07 row counts	queue_record	20	PASS
+A07 row counts	queue_status_log	25	PASS
+A07 row counts	arrival_checkin	20	PASS
+A07 row counts	parking_occupancy	20	PASS
+A07 row counts	station_notice	21	PASS
+A07 row counts	notice_revision	47	PASS
+A07 row counts	notice_recipient	20	PASS
+A07 row counts	notification_record	20	PASS
+check_name	actual_value	result
+A08 reservation overlap conflicts	0	PASS
+check_name	actual_value	result
+A09 duplicate active space occupancy	0	PASS
+check_name	actual_value	result
+A10 duplicate active vehicle occupancy	0	PASS
+check_name	actual_value	result
+A11 duplicate active queue user	0	PASS
+check_name	actual_value	result
+A12 invalid notification state	0	PASS
+check_name	actual_value	result
+A13 invalid reservation consume state	0	PASS
+check_name	actual_value	result
+A14 invalid queue consume state	0	PASS
+check_name	nonconforming_tables	result
+A15 A table engine/collation	0	PASS
+check_name	actual_value	result
+A16 A foreign key count	34	PASS
+check_name	actual_value	result
+A17 A CHECK constraint count	40	PASS

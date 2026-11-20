@@ -16,7 +16,7 @@
 - 平台与运营商之间的结算对账
 - 预约排队、备件库存、公告通知等新增业务的跨模块协作
 
-**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。④用户与会员运营的 9 张核心表和 3 张跨模块表已在 MySQL 8.0.46 中完成建表与结构验收；核心测试数据、约束、查询、事务及 B–D 20 项集成检查均已通过。其他业务线的实现进度以各负责人最新提交为准。
+**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。B 的 16 张正式设施/订单表、D 的 9 张独立核心表与 3 张跨模块表、A 的 10 张预约排队/公告通知表均已在 MySQL 8.0.46 中完成建表与结构验收；D 核心测试数据、约束、查询和事务及 B–D 20 项集成检查均已通过，A 模块的测试数据、约束、查询和事务验证也已完成。C 的 ③⑦ 数据字典与局部 E-R 图已提交，DDL 与持久层进度以 C 的最新分支为准。新增 ⑥⑦⑧ 三条业务线的视图/过程数量考核口径仍需向指导教师确认。
 
 ## 业务范围
 
@@ -97,9 +97,9 @@
 | ③ 设备监控与故障工单 | `device_telemetry`、`alarm`、`maintenance_work_order` |
 | ④ 用户与会员运营 | `membership_level`、`user`、`vehicle`、`membership_record`、`promotion`、`promotion_station`、`coupon`、`coupon_redemption`、`enterprise_customer`、`fleet`、`fleet_vehicle`、`fleet_quota_record` |
 | ⑤ 结算与对账 | `settlement_statement`、`settlement_detail`、`reconciliation_difference`、`reconciliation_confirmation`、`invoice_record` |
-| ⑥ 预约、排队与到站 | `charging_reservation`、`queue_record`、`arrival_checkin`、`parking_occupancy` |
+| ⑥ 预约、排队与到站 | `charging_reservation`、`reservation_status_log`、`queue_record`、`queue_status_log`、`arrival_checkin`、`parking_occupancy` |
 | ⑦ 备件库存与领用 | `spare_part`、`warehouse`、`inventory`、`inventory_transaction`、`work_order_part` |
-| ⑧ 场站服务公告与通知 | `station_notice`、`notice_recipient`、`notification_record` |
+| ⑧ 场站服务公告与通知 | `station_notice`、`notice_revision`、`notice_recipient`、`notification_record` |
 
 ## 三条端到端流程
 
@@ -113,11 +113,14 @@
 
 ```text
 .
+├── A/               # A 模块说明、业务图、测试证据与字典生成工具
+├── B/               # B 设施/订单数据字典、业务图与对接清单
 ├── app/             # Python 数据库连接、持久层、服务层和演示入口
 ├── docs/            # 数据字典、模块说明、任务分工、执行方案和业务流程图
 ├── sql/             # 各成员 DDL、测试数据、业务查询与验证脚本
 ├── target/          # 课程设计任务书与小组思路文档
 ├── tests/           # 持久层与事务单元测试
+├── yX/              # C ③⑦ 数据字典与局部 E-R 图
 ├── requirements.txt # Python 依赖清单
 └── README.md
 ```
@@ -134,12 +137,32 @@
 | [整体业务流程图](docs/新能源汽车充电桩平台_八条业务线整体业务流程图.png) | 八条业务线及跨模块交接关系 |
 | [D 模块开发说明](docs/d/README.md) | ④用户会员、⑤结算对账的状态、交付物、运行方式和待确认接口 |
 | [④业务线 DDL 说明](docs/d/04_membership.md) | ④核心表与跨模块表的设计说明、执行顺序和关键约束 |
+| [A 模块开发说明](docs/a/README.md) | ⑥预约排队、⑧公告通知的状态、交付物、接口、运行方式和实测结果 |
+| [⑥预约排队设计说明](docs/a/06_reservation_queue.md) | ⑥需求、E-R、3NF、DDL、并发控制、视图、查询与测试 |
+| [⑧公告通知设计说明](docs/a/08_notice.md) | ⑧公告状态机、版本、接收人、通知状态机、视图与测试 |
+| [A 数据字典](docs/a/A_06_08_data_dictionary.xlsx) | 10 表 116 字段，含类型、键、约束、索引与待确认事项 |
+| [A 模块说明与导航](A/README.md) | A 的 SQL/Python/图表/测试证据索引与快速复现 |
 
 ## B 模块第二阶段交付
 
 B 已新增 16 张正式表、124 个字段、7 个设施触发器及 6 个查询视图，订单用户和车辆已按 D 的真实结构建立外键。D 核心表 → B 结构 → D 跨模块表的建表及 20 项结构检查已在本地 MySQL 8.0.46 全部通过，测试事务已回滚。详情见 [B 开发与接入说明](B/README.md)。
 
 [B 物理字典](B/第二天材料/B_第二天物理数据字典.xlsx)、[B 关系模式与范式说明](B/第二天材料/关系模式与设计说明.md)、[A/C/D 对接清单](B/第二天材料/ACD对接清单.md)和[验证记录](B/第二天材料/建表验证记录.md)可供继续汇总和联调。B 正式 Python 服务迁入及 A/C/D 业务事务联调为后续阶段。
+
+## A 模块第三阶段交付
+
+A 已完成 ⑥ 预约、排队与到站管理，以及 ⑧ 场站服务公告与通知：
+
+- 新增 10 张表、116 个字段、34 个外键、40 个 CHECK、8 个视图、14 个存储过程、13 个触发器；
+- 同枪预约使用“锁枪行 + 锁定读”保证并发安全，两个连接同时预约同一枪同一时段时仅一个成功；
+- 到站核验触发器自动生成车位占用；生成列唯一约束保证同车位/同车辆最多一条未释放占用；
+- 预约/排队资格只能消费一次，B 开单后调用 `sp_consume_admission` 原子消费；
+- 公开公告、定向停运通知、公告版本、接收人快照、通知发送/失败/阅读状态机均已实现；
+- 10 张表各至少 20 条测试数据；16 项约束测试、17 项真实数据库验收、61 项 Python 单元测试全部通过。
+
+详情见 [A 模块开发说明](docs/a/README.md)、[A 模块说明与导航](A/README.md)、[⑥预约排队设计说明](docs/a/06_reservation_queue.md)、[⑧公告通知设计说明](docs/a/08_notice.md)和[A 本机实测记录](A/第三天材料/实测/README.md)。
+
+> A 的 `sql/A/00_local_shared_fixtures.sql` 仅用于本地联调，提供 B 场站/枪/车位/停运计划的测试夹具；B 正式种子到位后应替换，不影响 A 的表结构和业务规则。
 
 ## 当前可验证成果
 
@@ -157,7 +180,7 @@ B 已新增 16 张正式表、124 个字段、7 个设施触发器及 6 个查�
 - ④最终综合回归 F01～F08 全部 PASS，核心表、约束、业务一致性和敏感字段检查正常
 - 3 张跨模块表已创建；3 个主键、7 个外键、4 个唯一约束和 5 个 CHECK 均通过 I01～I06 验收
 - B 的 16 张表、7 个触发器、6 个视图及 D 的 12 张表已完成 20 项集成检查，全部 PASS 且测试数据已回滚
-- 当前 Python 单元测试共 23 项，全部通过
+- D 模块原有 Python 单元测试 23 项全部通过；加入 A 模块后全仓 61 项单元测试全部通过
 
 快速验证：
 
@@ -172,6 +195,31 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 ```
 
 详细说明见 [D 模块开发说明](docs/d/README.md)。
+
+A 模块当前可验证成果：
+
+- 10 张表均已在 `charging_platform` 创建，使用 InnoDB 与 `utf8mb4_0900_ai_ci`
+- 10 张表测试数据为 20/25/20/25/20/20/21/47/20/20 条，均 ≥20
+- 34 个外键、40 个 CHECK、8 个视图、14 个存储过程、13 个触发器全部创建成功
+- 16 项约束/状态机/过程测试全部 PASS，7 条业务查询执行成功
+- 真实数据库验收 17 项全部 PASS：结构、数据、预约→核验→占位、定向公告→发送→撤回、同枪并发
+- 同枪并发演示：两个连接同时预约同一时段，一个成功、一个 `RESERVATION_GUN_OVERLAP`，清理后 0 残留
+- Python 单元测试共 61 项，全部通过（含 A 的持久层、服务层与错误翻译测试）
+
+A 快速验证：
+
+```powershell
+Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
+.\.venv\Scripts\python.exe -m app.run_reservation_demo
+.\.venv\Scripts\python.exe -m app.run_notice_demo
+.\.venv\Scripts\python.exe -m app.run_reservation_workflow_demo
+.\.venv\Scripts\python.exe -m app.run_notice_workflow_demo
+.\.venv\Scripts\python.exe -m app.run_reservation_concurrency_demo
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe tests/verify_a_module.py
+```
+
+详细说明见 [A 模块开发说明](docs/a/README.md)。
 
 ## 开发计划
 
@@ -200,10 +248,12 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 
 以下事项需组内讨论或向指导教师确认，确认后更新数据字典与本文档：
 
-- B、C、A 模块的最终表结构、DDL 执行顺序及跨模块外键接入时间
+- C 模块的最终表结构、DDL 执行顺序及 A/B/D 跨模块联调时间；A/B 结构已接入并验证
 - 新增三条业务线的考核口径（视图、存储过程/触发器数量）
 - 设备停运计划的唯一登记责任人（B 或 C）
-- 预约迟到保留时长、叫号保留时长与现场排队优先级
+- 预约迟到保留时长、叫号保留时长、排队等待过期时长与现场排队优先级
+- 预约提前核验窗口（当前最多提前 30 分钟）
+- 公开公告是否需要主动推送，以及通知渠道优先级与重试策略
 - 车位与充电枪的映射基数
 - 优惠券锁定/核销时点，支付失败、取消、退款时的回滚规则
 - 应付、优惠、实收、退款、净收的金额口径及跨账期调整规则

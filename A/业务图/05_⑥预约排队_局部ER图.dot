@@ -1,0 +1,149 @@
+digraph er_reservation {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.4, nodesep=0.55, ranksep=1.25, splines=true];
+    node [fontname="Microsoft YaHei", fontsize=10, shape=plaintext];
+    edge [fontname="Microsoft YaHei", fontsize=8.5, color="#555555",
+          dir=both, arrowtail=tee, arrowhead=crow, arrowsize=0.7];
+
+    subgraph cluster_party {
+        label="D 用户与车辆"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        user [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>user 用户</B></TD></TR>
+            <TR><TD ALIGN="LEFT">user_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_status</TD></TR>
+            <TR><TD ALIGN="LEFT">balance</TD></TR>
+            </TABLE>>];
+        vehicle [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>vehicle 车辆</B></TD></TR>
+            <TR><TD ALIGN="LEFT">vehicle_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">vehicle_status</TD></TR>
+            </TABLE>>];
+    }
+
+    subgraph cluster_facility {
+        label="B 场站设施"; fontsize=13; fontcolor="#BF9000";
+        style="rounded,dashed"; color="#BF9000"; bgcolor="#FFF8E1";
+        station [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FFF2CC"><B>station 场站</B></TD></TR>
+            <TR><TD ALIGN="LEFT">station_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">status / opens_minute / closes_minute</TD></TR>
+            </TABLE>>];
+        gun [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FFF2CC"><B>charging_gun 充电枪</B></TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">pile_id / station_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">parking_space_id (FK, UNIQUE)</TD></TR>
+            <TR><TD ALIGN="LEFT">status</TD></TR>
+            </TABLE>>];
+        space [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FFF2CC"><B>parking_space 车位</B></TD></TR>
+            <TR><TD ALIGN="LEFT">parking_space_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">code</TD></TR>
+            </TABLE>>];
+        station -> gun [label="1:N 配置"];
+        gun -> space [label="N:1 绑定", style=dashed];
+    }
+
+    subgraph cluster_reservation {
+        label="⑥ 预约、排队与到站（A 主维护）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        reservation [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>charging_reservation 预约</B></TD></TR>
+            <TR><TD ALIGN="LEFT">reservation_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id / vehicle_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id / station_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">starts_at / ends_at</TD></TR>
+            <TR><TD ALIGN="LEFT">late_grace_minutes / status</TD></TR>
+            <TR><TD ALIGN="LEFT">consumed_order_id (FK, UNIQUE)</TD></TR>
+            </TABLE>>];
+        queue [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>queue_record 现场排队</B></TD></TR>
+            <TR><TD ALIGN="LEFT">queue_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id / user_id / vehicle_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">ticket_no / queue_date (UNIQUE)</TD></TR>
+            <TR><TD ALIGN="LEFT">priority_class / priority_score</TD></TR>
+            <TR><TD ALIGN="LEFT">status / call_expires_at</TD></TR>
+            <TR><TD ALIGN="LEFT">consumed_order_id (FK, UNIQUE)</TD></TR>
+            </TABLE>>];
+        res_log [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>reservation_status_log 预约状态历史</B></TD></TR>
+            <TR><TD ALIGN="LEFT">log_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">reservation_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">old_status / new_status / changed_at</TD></TR>
+            </TABLE>>];
+        queue_log [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>queue_status_log 排队状态历史</B></TD></TR>
+            <TR><TD ALIGN="LEFT">log_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">queue_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">old_status / new_status / changed_at</TD></TR>
+            </TABLE>>];
+        checkin [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>arrival_checkin 到站核验</B></TD></TR>
+            <TR><TD ALIGN="LEFT">checkin_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">reservation_id (FK, UNIQUE)</TD></TR>
+            <TR><TD ALIGN="LEFT">queue_id (FK, UNIQUE)</TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id / parking_space_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">checked_in_at / checkin_method</TD></TR>
+            </TABLE>>];
+        occupancy [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>parking_occupancy 车位占用</B></TD></TR>
+            <TR><TD ALIGN="LEFT">occupancy_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">checkin_id (FK, UNIQUE)</TD></TR>
+            <TR><TD ALIGN="LEFT">parking_space_id / gun_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">occupied_at / released_at / release_reason</TD></TR>
+            <TR><TD ALIGN="LEFT">active_space_id / active_vehicle_id (UNIQUE)</TD></TR>
+            </TABLE>>];
+        reservation -> res_log [label="1:N 状态历史"];
+        queue -> queue_log [label="1:N 状态历史"];
+        reservation -> checkin [label="0..1:1 到站"];
+        queue -> checkin [label="0..1:1 到站"];
+        checkin -> occupancy [label="1:1 入位"];
+        space -> occupancy [label="1:N 占用"];
+        gun -> occupancy [label="1:N 占用"];
+    }
+
+    subgraph cluster_external {
+        label="B/C 外部实体（共享/逻辑引用）"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        outage [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#E2F0D9"><B>equipment_outage_plan 停运计划</B></TD></TR>
+            <TR><TD ALIGN="LEFT">outage_plan_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id / gun_id</TD></TR>
+            <TR><TD ALIGN="LEFT">starts_at / ends_at / status</TD></TR>
+            </TABLE>>];
+        order [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#E2F0D9"><B>charging_order 充电订单（B）</B></TD></TR>
+            <TR><TD ALIGN="LEFT">order_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">channel / admission_id</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id / vehicle_id / gun_id</TD></TR>
+            <TR><TD ALIGN="LEFT">state / starts_at / ends_at</TD></TR>
+            </TABLE>>];
+        outage -> reservation [label="0..N 时间冲突校验", style=dashed];
+        reservation -> order [label="0..1:1 消费资格", style=dashed];
+        queue -> order [label="0..1:1 消费资格", style=dashed];
+    }
+
+    user -> reservation [label="1:N 预约"];
+    vehicle -> reservation [label="1:N 预约"];
+    user -> queue [label="1:N 排队"];
+    vehicle -> queue [label="1:N 排队"];
+    gun -> reservation [label="1:N 预约"];
+    gun -> queue [label="1:N 排队"];
+}

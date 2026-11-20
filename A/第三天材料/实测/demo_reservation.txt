@@ -1,0 +1,22 @@
+连接成功：MySQL 8.0.46，数据库 charging_platform，⑥⑧核心表 10/10
+
+有效预约看板：
+- reservation_id=1007，场站=测试场站二，2号枪，2026-11-20 08:00:00~2026-11-20 09:00:00，用户=测试用户07，状态=CHECKED_IN
+- reservation_id=1008，场站=测试场站二，3号枪，2026-11-20 09:00:00~2026-11-20 10:00:00，用户=测试用户08，状态=CHECKED_IN
+- reservation_id=1009，场站=测试场站二，1号枪，2026-11-20 10:00:00~2026-11-20 11:00:00，用户=测试用户09，状态=CHECKED_IN
+- reservation_id=1010，场站=测试场站二，2号枪，2026-11-20 11:00:00~2026-11-20 12:00:00，用户=测试用户10，状态=CHECKED_IN
+- reservation_id=1011，场站=测试场站三，1号枪，2026-11-20 12:00:00~2026-11-20 13:00:00，用户=测试用户11，状态=CHECKED_IN
+
+现场排队看板：
+- queue_id=2005，场站=测试场站一，排队号=5，优先级=RESERVATION_LATE，等待=107分钟，状态=CALL_EXPIRED
+- queue_id=2006，场站=测试场站二，排队号=6，优先级=RESERVATION_LATE，等待=106分钟，状态=CALL_EXPIRED
+- queue_id=2007，场站=测试场站二，排队号=7，优先级=RESERVATION_LATE，等待=105分钟，状态=CALL_EXPIRED
+- queue_id=2001，场站=测试场站一，排队号=1，优先级=WALK_IN，等待=111分钟，状态=WAITING
+- queue_id=2002，场站=测试场站一，排队号=2，优先级=WALK_IN，等待=110分钟，状态=WAITING
+
+当前车位占用：
+- occupancy_id=6，车位=TEST-SPACE-12，用户=测试用户12，占用=2987分钟，状态=CHARGING
+- occupancy_id=7，车位=TEST-SPACE-13，用户=测试用户13，占用=2927分钟，状态=CHARGING
+- occupancy_id=8，车位=TEST-SPACE-14，用户=测试用户14，占用=2867分钟，状态=CHARGING
+- occupancy_id=9，车位=TEST-SPACE-15，用户=测试用户15，占用=2807分钟，状态=CHARGING_ENDED_VEHICLE_PRESENT
+- occupancy_id=1，车位=TEST-SPACE-07，用户=测试用户07，占用=107分钟，状态=ARRIVED_NOT_CHARGING

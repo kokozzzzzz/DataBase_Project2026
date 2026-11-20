@@ -1,0 +1,22 @@
+连接成功：MySQL 8.0.46，数据库 charging_platform，公告相关表 4/4
+
+当前有效公开公告：
+- notice_id=3005，场站=测试场站一，级别=EMERGENCY，标题=暴雨安全提示
+- notice_id=3010，场站=测试场站二，级别=WARNING，标题=排队高峰提示
+- notice_id=3007，场站=测试场站三，级别=WARNING，标题=高温充电提示
+- notice_id=3003，场站=测试场站三，级别=WARNING，标题=夜间施工提醒
+- notice_id=3009，场站=测试场站一，级别=INFO，标题=卫生间开放
+
+公告送达统计：
+- notice_id=3021，类型=PUBLIC，接收=0，送达率=N/A，阅读率=N/A
+- notice_id=3020，类型=OUTAGE_TARGETED，接收=1，送达率=100.00%，阅读率=100.00%
+- notice_id=3019，类型=OUTAGE_TARGETED，接收=1，送达率=100.00%，阅读率=100.00%
+- notice_id=3018，类型=OUTAGE_TARGETED，接收=1，送达率=100.00%，阅读率=100.00%
+- notice_id=3017，类型=OUTAGE_TARGETED，接收=1，送达率=0.00%，阅读率=0.00%
+
+停运公告受影响用户：
+- notice_id=3011，用户=测试用户01，预约=1001，预约状态=BOOKED，原因=AFFECTED_RESERVATION
+- notice_id=3012，用户=测试用户02，预约=1002，预约状态=BOOKED，原因=AFFECTED_RESERVATION
+- notice_id=3013，用户=测试用户03，预约=1003，预约状态=BOOKED，原因=AFFECTED_RESERVATION
+- notice_id=3014，用户=测试用户04，预约=1004，预约状态=BOOKED，原因=AFFECTED_RESERVATION
+- notice_id=3015，用户=测试用户05，预约=1005，预约状态=BOOKED，原因=AFFECTED_RESERVATION

@@ -1,0 +1,65 @@
+digraph robustness_notice {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.3, ranksep=1.0];
+    node [fontname="Microsoft YaHei", fontsize=11];
+    edge [fontname="Microsoft YaHei", fontsize=9, color="#555555"];
+
+    subgraph cluster_boundary {
+        label="边界对象（Boundary）"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        b_admin [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                 label="«boundary»\n公告管理界面"];
+        b_driver [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                  label="«boundary»\n车主公告列表"];
+        b_channel [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                   label="«boundary»\n通知渠道适配器"];
+    }
+
+    subgraph cluster_control {
+        label="控制对象（Control）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        c_notice [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n公告控制器\n创建/修改/发布/撤回"];
+        c_recipient [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                     label="«control»\n接收人生成器\n按停运范围筛选"];
+        c_notify [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n通知控制器\n发送/失败/阅读"];
+        c_expire [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n过期批处理"];
+    }
+
+    subgraph cluster_entity {
+        label="实体对象（Entity）"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        e_notice [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                  label="station_notice\n公告主表"];
+        e_revision [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                    label="notice_revision\n版本快照"];
+        e_recipient [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="notice_recipient\n接收对象"];
+        e_notification [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                        label="notification_record\n发送记录"];
+        e_outage [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                  label="equipment_outage_plan\n共享停运计划"];
+        e_admission [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="charging_reservation /\nqueue_record\n受影响资格"];
+        e_party [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="user / vehicle\n接收人"];
+    }
+
+    b_admin -> c_notice [label="创建/修改/发布/撤回"];
+    c_notice -> e_notice [label="状态机更新"];
+    c_notice -> e_revision [label="触发器追加版本"];
+    c_notice -> c_recipient [label="发布定向公告"];
+    c_recipient -> e_outage [label="读取停运范围", style=dashed];
+    c_recipient -> e_admission [label="筛选受影响预约/排队", style=dashed];
+    c_recipient -> e_recipient [label="写入接收人快照"];
+    c_recipient -> c_notify [label="生成待发送通知"];
+    c_notify -> e_notification [label="状态/失败/阅读"];
+    c_notify -> b_channel [label="调用渠道"];
+    b_driver -> e_notice [label="查看公开公告", style=dotted];
+    c_expire -> e_notice [label="置 EXPIRED", style=dashed];
+    c_expire -> e_revision [label="触发器追加 EXPIRE 版本", style=dashed];
+    e_recipient -> e_party [label="关联用户/车辆", style=dotted];
+    e_notification -> e_recipient [label="按接收人/渠道唯一", style=dotted];
+}
