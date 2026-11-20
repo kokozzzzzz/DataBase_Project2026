@@ -14,7 +14,7 @@ D同学
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
 | ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
-| ⑤ 结算与对账 | 设计审核完成 | 已对照任务书、D 数据字典和 B 正式资金结构确定五表设计、半开账期、足额支付入账、跨期退款及红冲规则；DDL 尚未执行 |
+| ⑤ 结算与对账 | 5 张表已建并通过结构验收 | MySQL 8.0.46 实测 S01～S10 全部 PASS；5 主键、13 外键、7 唯一、20 CHECK、2 个生成列均符合定稿字典 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
 
@@ -25,6 +25,9 @@ D同学
 | `docs/d/D_04_05_data_dictionary.xlsx` | ④⑤ 业务线数据字典 |
 | `docs/d/04_membership.md` | ④ 用户与会员运营 DDL 说明与执行顺序 |
 | `docs/d/05_settlement.md` | ⑤ 结算与对账定稿设计、金额口径、状态流转、索引与实施计划 |
+| `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
+| `sql/D/05_settlement_schema.sql` | ⑤ 五张正式业务表 DDL，不含删除语句，依赖 B 的运营商、场站、订单、支付和退款表 |
+| `sql/D/05_settlement_verify.sql` | ⑤ 表数量、字段、约束、外键、类型、生成列和引擎的只读验收脚本 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
@@ -73,6 +76,10 @@ D同学
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
 | B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
 | 优惠券事务 | 发券、锁券、订单优惠、成功支付和核销均 PASS；回滚后券、订单、运营商和支付记录均为 0 |
+| ⑤核心 DDL | 5 张表创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci`，共 83 个字段 |
+| ⑤完整性约束 | 5 个主键、13 个外键、7 个唯一约束、20 个 CHECK，S01～S10 全部 PASS |
+| ⑤跨模块接口 | 6 个 B 外键、7 个 D 内部外键、所有编号类型及 2 个生成列均验收通过 |
+| ⑤初始数据状态 | 5 张新表均为 0 行，等待测试数据阶段 |
 
 ## 6. 数据库实体
 
@@ -96,7 +103,7 @@ D同学
 - `coupon`
 - `coupon_redemption`（关联 B 的 `charging_order`）
 
-### ⑤ 结算与对账（规划 5 张表）
+### ⑤ 结算与对账（已建表并通过验收的 5 张表）
 
 - `settlement_statement`
 - `settlement_detail`
@@ -146,6 +153,14 @@ SOURCE sql/D/04_membership_integration.sql;      -- 依赖 station、charging_or
 SOURCE sql/D/04_membership_integration_verify.sql;
 ```
 
+B 的 `operator`、`station`、`charging_order`、`payment_record`、`refund_record` 已建好后，⑤首次建表按顺序执行：
+
+```sql
+SOURCE sql/D/05_settlement_preflight.sql;       -- P01～P04 必须 PASS，P05 必须为空
+SOURCE sql/D/05_settlement_schema.sql;          -- 首次创建五张表，不可重复执行；本机已完成
+SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S10 已全部 PASS
+```
+
 Python 侧：
 
 ```powershell
@@ -164,11 +179,11 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 
 ## 9. 待确认事项
 
-1. `station`、`charging_order` 及其跨模块外键类型已经按 B 正式结构确认；`payment_record`、`refund_record` 的结算使用口径仍需与 B 确认。
-2. 订单、支付和退款统一使用 `+08:00` 会话时区；跨账期退款调整和平台分成口径仍需确认。
+1. `operator`、`station`、`charging_order`、`payment_record`、`refund_record` 的正式字段和编号类型已经按 B 结构确认。
+2. 订单、支付和退款统一使用 `+08:00` 会话时区；支付和退款分别按各自 `occurred_at` 进入半开账期。正式分成费率仍需由老师或合同参数确认。
 3. 锁券、支付失败释放和支付成功核销已实现；取消订单可调用释放操作，退款后是否返券仍需确认。
 4. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
 7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤ 五表设计已审核；下一步先修订数据字典，再编写不含删除语句的 DDL 与只读验收脚本。
+8. ⑤ 五表已在 MySQL 8.0.46 创建，S01～S10 全部 PASS；下一步准备每表至少 20 条测试数据及事务回滚测试。
