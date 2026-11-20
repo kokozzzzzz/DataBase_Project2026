@@ -312,6 +312,7 @@ def release_coupon_from_order(
             FROM payment_record
             WHERE order_id = %s
               AND status = 'SUCCESS'
+            FOR UPDATE
             """,
             (order_id,),
         )
@@ -324,7 +325,7 @@ def release_coupon_from_order(
         cursor.execute(
             """
             UPDATE charging_order
-            SET discount_amount = 0
+            SET discount_amount = 0, confirmed_at = NULL
             WHERE order_id = %s
             """,
             (order_id,),
@@ -409,6 +410,7 @@ def redeem_coupon_for_order(
             FROM payment_record
             WHERE order_id = %s
               AND status = 'SUCCESS'
+            FOR UPDATE
             """,
             (order_id,),
         )

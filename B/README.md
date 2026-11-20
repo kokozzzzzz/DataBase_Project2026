@@ -1,106 +1,131 @@
 # B 场站设施与充电交易
 
-负责人 B，业务线①场站与充电设施、②充电订单与计费。2026-11-19 更新。本次交付完成第二阶段的表结构整理、物理字典和 B↔D 建表验证，可供 A、C 引用设施编号并供 D 接入优惠券和继续结算设计。
+B 负责①场站与充电设施、②充电订单与计费。2026-11-20 更新，接入基线为 dev 的 237b401。本次完成正式开单、分时核价、支付补缴和部分退款服务，接 A 的资格与占位及 D 的优惠券事务，提供固定测试数据供 D 继续结算。
 
-## 当前完成情况
+## 当前进度与材料
 
-| 成果 | 当前状态 |
+| 内容 | 本次结果及文件 |
 | --- | --- |
-| 第一日需求、逻辑字典和六张业务图 | 已提交；图与第一日工作簿继续保留供需求追溯 |
-| 正式建表 | 16 张表、124 个字段，沿用 D 的 BIGINT UNSIGNED 编号与字符集；订单外键引用 D 的 user、vehicle |
-| 设施数据库规则 | 7 个功率及状态历史触发器，已验证 |
-| 查询接口 | 6 个 B 视图，包括设备当前可用性和订单资金汇总 |
-| B↔D 结构接入 | D 的 9 张核心表、B 的 16 张表及 D 的 3 张跨模块表已在独立实例按顺序创建；20 项检查全部通过 |
-| 正式业务服务 | 下一阶段接入 app 公共连接，替换独立版外部数据适配，验证开单、核价和资金事务 |
-| A/C 联调 | 所需字段、写入责任及确认事项已列在对接清单，等待对方接口 |
+| 数据结构 | 沿用已交付的16张表、124个字段、7个设施触发器和6个视图；[第二天物理字典与设计](第二天材料/)保留 |
+| 正式交易 | [charging_service.py](../app/services/charging_service.py) 实现 open_order、add_readings、finish_order、confirm_bill、record_payment、record_refund；使用公共连接，由调用方控制事务 |
+| 分时计算 | [charging_billing.py](../app/services/charging_billing.py) 提供可信读数校验、分段与 Decimal 金额计算 |
+| 查询入口 | [charging_repository.py](../app/database/charging_repository.py) 提供订单资金、用户订单分页和场站设备；[run_charging_demo.py](../app/run_charging_demo.py) 提供只读命令入口 |
+| 增量保护 | [05_transaction_guards.sql](../sql/B/05_transaction_guards.sql) 新增3个触发器，保护费用快照、已出账事实及成功支付后的金额 |
+| 固定测试集 | [seed_b_integration.py](../app/seed_b_integration.py) 生成真实A/B/D表中的虚构样例；B每表至少20行，含40笔足额支付订单、80条费用分段、100条支付、20条次月退款 |
+| 真实验收 | [verify_b_workflow.py](../tests/verify_b_workflow.py) 的16项功能、回滚、幂等、旧快照及并发检查通过；[test_charging_billing.py](../tests/test_charging_billing.py) 补充14项计费回归，全仓87项单元测试通过 |
+| 交接与证据 | [接口与交接决定](第三天材料/接口与交接决定.md)、[固定数据说明](第三天材料/固定测试数据说明.md)、[验证记录](第三天材料/验证记录.md)、[实测输出](第三天材料/实测/) |
+| 第一阶段资料 | [第一日字典](B_第一天统一数据字典.xlsx)、[业务图](业务图/)；跨模块调用以本次实现及说明为最新依据 |
 
-本次实测 MySQL 为 **8.4.13**，小组目标 **8.0.46** 仍需执行同一批脚本复验。第一次工作簿中“第二天再填”的类型以本次物理工作簿和 SQL 为最新依据。已确认字段变更由组长汇入全组字典。
+本次验证使用独立 MySQL **8.4.13** 临时实例，复用仓库A/D正式结构与服务，结束后已关闭。小组目标 **8.0.46** 需对本次新增服务与触发器复验。D已记录旧B结构在8.0.46的验证，第二天材料继续作为历史证据。枪表保留station_id用于同站复合外键，是已说明的范式例外。
 
-## 文件导航
+## 现有项目更新与空库顺序
 
-| 文件 | 内容 |
-| --- | --- |
-| [物理数据字典](第二天材料/B_第二天物理数据字典.xlsx) | 沿用小组模板，填完字段类型、精度、键、外键、空值、唯一及默认值；联合约束、生成列和待对接项写在约束与备注中 |
-| [物理字段 CSV](第二天材料/B_物理字段数据字典.csv) | 便于 Git 文本审查和字典汇总 |
-| [关系模式与设计说明](第二天材料/关系模式与设计说明.md) | 各表的键、函数依赖、范式检查、索引用途和数据库/业务层责任 |
-| [A/C/D 对接清单](第二天材料/ACD对接清单.md) | 接口已知条件、对方需要提供的内容、待确认决议及建表依赖 |
-| [建表验证记录](第二天材料/建表验证记录.md) | 环境、执行顺序、结果、验证范围及后续检查 |
-| [原始验证结果与元数据](第二天材料/实测/) | 20 项 PASS、实际字段、外键、CHECK 和索引导出 |
-| [sql/B](../sql/B/) | 首次建表预检、16 表 DDL、设施触发器、6 个视图及只读核查 |
-| [验证脚本](../tests/verify_b_structure.py) | 复用公共数据库连接，执行结构及事务内正反例验证，最终回滚 |
-| [第一日字典](B_第一天统一数据字典.xlsx)、[业务图](业务图/) | 第一阶段需求与局部设计，A 的业务关联仍待接口核对 |
+使用仓库公共 app/database/connection.py、config.py 和 .env 的 DB_HOST、DB_PORT、DB_USER、DB_PASSWORD、DB_NAME。会话统一+08:00，数据库名 charging_platform。现有密码自己在本机填写；服务采用公共 DB_* 配置。
 
-枪表保留 station_id 以便用复合外键约束桩、枪、车位同站，这是有意保留的范式例外。历史费用和订单汇总属于核价快照，原因详见设计说明。
-
-## 第一次安装与已有库接入
-
-在 VS Code 打开仓库根目录 DataBase_Project2026。Python 沿用 requirements.txt 和 app/database/；本机连接参数写入 .env。已有配置直接核对，第一次才从 .env.example 复制并填写。验证脚本复用 DB_HOST、DB_PORT、DB_USER、DB_PASSWORD、DB_NAME，统一库名 charging_platform。
-
-先明确本次连接的 MySQL 实例。第一次集成建议使用独立实例上的空 charging_platform。已有 D 核心表时，核对结构并保留数据，跳过 D 核心建表；已有 B 表时先核对结构与已执行脚本，依据实际差异制定迁移。
-
-以下命令在**仓库根目录打开的 MySQL 客户端**执行。实际 mysql.exe 路径、端口和账号按本机填写，使用 `-p` 交互输入密码。SQL 的 SOURCE 以客户端当前目录解析路径。
+**已安装B第二阶段、D与A正式对象时**，在仓库根目录打开的 MySQL 客户端首次执行本次增量。
 
 ```sql
--- 仅在该实例尚无 charging_platform 时创建。
+USE charging_platform;
+SOURCE sql/B/05_transaction_guards.sql;
+```
+
+该文件创建3个触发器，成功后无需重复。先用 SHOW TRIGGERS 核对；中途失败时按已创建对象定位失败位置。DDL会隐式提交。
+
+**从空集成实例开始时**，在仓库根目录的 MySQL 客户端按下列顺序执行。已有对象按安装进度跳过；已有独立版同名表与数据需先评估迁移。
+
+```sql
 CREATE DATABASE charging_platform
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE charging_platform;
 SET SESSION time_zone = '+08:00';
-
--- 仅在 D 核心表尚未创建时执行。
 SOURCE sql/D/04_membership_core.sql;
-
--- 核对 user/vehicle 主键，首次安装时 B 表清单应为空。
-SOURCE sql/B/00_preflight.sql;
-
--- 首次安装 B 按顺序执行，每步成功后再继续。
 SOURCE sql/B/01_schema.sql;
 SOURCE sql/B/02_structure_triggers.sql;
 SOURCE sql/B/03_views.sql;
-
--- D 的跨模块表尚未创建时执行。
 SOURCE sql/D/04_membership_integration.sql;
-SOURCE sql/B/04_verify_structure.sql;
+SOURCE sql/A/01_schema.sql;
+SOURCE sql/A/02_triggers.sql;
+SOURCE sql/A/03_procedures.sql;
+SOURCE sql/A/04_views.sql;
+SOURCE sql/B/05_transaction_guards.sql;
+-- 用于后面的D结算数据预检。
+SOURCE sql/D/05_settlement_schema.sql;
 ```
 
-DDL 会隐式提交。中途失败时保留错误及已创建对象，查清依赖、类型或命名冲突后从失败位置继续；已创建的表或触发器重复执行会报错。本交付提供首次建表脚本，已有独立版同名表的数据迁移需另外评估。
+A的shared_fixtures与A种子不是运行本次B测试集的前置条件。B测试集自行添加虚构用户车辆及集成记录，D原有核心种子可按D说明另外准备。已安装A夹具的本机可保留其9000段数据，本集采用7200000段。
 
-完成配置后，在 **PowerShell 终端**执行以下验证命令。使用已安装 requirements.txt 的 Python 环境。
+## 运行、验证和重复执行
+
+在仓库根目录的 PowerShell 终端，使用已安装 requirements.txt 的Python环境并配置好.env后执行。
 
 ```powershell
-python tests/verify_b_structure.py
+# 默认预览并回滚。
+python -m app.seed_b_integration
+
+# 确认本机测试库后提交，保存本机实际编号。
+python -m app.seed_b_integration --commit --output ../B_本机实测/固定测试集.json
+
+# 正常用例回滚；并发用例短暂提交后按精确标记清理。
+python tests/verify_b_workflow.py --output ../B_本机实测/B业务流程验证.json
+
+# 只读查看该测试集的用户、站点。
+python -m app.run_charging_demo --user 7200001
+python -m app.run_charging_demo --station 7200001
+python -m pytest -q
 ```
 
-如需记录这台机器的复验结果，输出到自选的新目录，例如当前仓库之外的本机记录目录。
+预期真实流程16项PASS、全仓87项单元测试通过。单元测试不连接数据库；真实验收需已提交固定测试集。实测时为隔离额外pytest插件，使用PYTEST_DISABLE_PLUGIN_AUTOLOAD=1和`-p no:cacheprovider`，同样通过。
 
-```powershell
-python tests/verify_b_structure.py --output ../B_本机建表复验
+生成程序使用GET_LOCK串行加载，默认回滚，--commit才提交。重复执行会核对固定主数据规模、40笔订单金额和券状态后复用，部分占用或数据变动时拒绝覆盖并回滚。预览及失败可产生正常自增空号。历史预约以专用夹具INSERT导入，再调用A核验、B交易服务；正式预约仍走A的create_reservation，保留其过去时间限制。
+
+在MySQL客户端继续执行D的只读检查。
+
+```sql
+SOURCE sql/D/05_settlement_seed_preflight.sql;
 ```
 
-预期得到 20 项 PASS。脚本需要读取元数据及插入/更新样例的权限，全部样例在事务内回滚，自增编号可能留下空号。它验证约束及引用关系，不触发正式付款或外部系统调用。老师要求的每表 20 条正式测试数据在下一阶段准备。
+本次DP03为40笔可结算订单（建议≥20），DP06为20笔成功支付对应退款（建议≥1），均PASS。订单自增编号以本机输出或admission_id关联查询为准。
 
-## 给 D 的当前可用接口
+## 服务调用及事务约定
 
-- 订单 user_id、vehicle_id 现已引用 D 主键。开单服务后续核实用户与车的当时有效性、归属和余额，订单保留历史用户号。
-- station.station_id 可供 promotion_station 引用，charging_order.order_id 可供 coupon 锁券和 coupon_redemption 核销引用。当前 D 的三个跨模块表已通过建表及关系插入验证。
-- 原价 gross_amount、优惠 discount_amount 是订单字段；应付 payable 为 v_b_order_funds 的计算列。支付用 payment_record，退款用 refund_record，并通过 payment_id 回查订单。
-- 一单可多笔支付和多笔退款。SUCCESS 支付进入 paid；退款表只记成功事实。v_b_order_funds 展示迄今金额，月结按两类流水各自 occurred_at 统计，先分别汇总再连接。
-- 表、外键可供继续开发；锁券、核销、超付、累计退款限额、余额扣减与账期调整仍需双方正式事务实现及联调。
+```python
+from app.database.connection import database_connection, transaction
+from app.services.charging_service import open_order
 
-## 给 A、C 的交接与当前约定
+with database_connection() as connection:
+    with transaction(connection):
+        order_id = open_order(
+            connection,
+            user_id=actual_user_id,
+            vehicle_id=actual_vehicle_id,
+            gun_id=actual_gun_id,
+            channel="RESERVATION",
+            admission_id=actual_reservation_id,
+        )
+```
 
-A 可引用 station、pile、gun、parking_space 编号。B 当前采用每枪必绑同站一车位、每位至多一枪，实际占位由 A 维护；请 A 核实映射并提供预约/叫号资格、有效期、车辆占位与原子消费入口。订单预留 channel + admission_id，正式外键映射等待 A 表结构。
+actual_*由A核验结果或真实业务请求提供。其他服务也接收公共connection并使用同一事务约定，参数见函数定义与真实验收用例。异常应传播到transaction外以完整回滚。死锁或锁超时整笔回滚后，按同一资格/支付/退款流水键重试。接前端时由统一身份权限层验证操作者与订单归属。
 
-C 可引用 pile_id、gun_id。B 提供状态日志、离线待办和共享停运表；请 C 对齐故障、离线、维修复核及恢复的写入责任。停运计划登记方由 A/B/C 共同确认，使用同一张 equipment_outage_plan。当前支持全站与单枪范围，gun_id 为空代表全站。
+## 本次落实的业务口径
 
-本次 B SQL 与验证会话采用北京时间 +08:00，DATETIME 表示约定的本地时间，时段和有效期采用左闭右开。公共连接尚待全组统一落实会话时区。枪位基数、停运登记方、心跳阈值、资格消费、优惠与退款恢复的决定详见对接清单；180 秒心跳与 5 元余额预检仅为原独立版用值。
+1. 正式开单要求A的CHECKED_IN预约/排队资格及本车有效占位。现场车主走A的WALK_IN流程，当前B入口拒绝无资格DIRECT。默认启动余额预检5元为B配置，非老师规定。
+2. 使用北京时间、秒精度DATETIME、左闭右开区间。可信读数包含开单、结束、电价及必要免费边界；缺失或断连进入REVIEW。复核须提供依据。服务计量单位先四舍五入至6位与快照一致，连续分段两类费用分别四舍五入到分。免费只免服务费，起步金额在优惠前补差。
+3. 已出账后调用D锁券，再由B确认账单。部分支付保留锁券，足额成功与核销原子完成；首笔失败且无成功支付时释放券、清零优惠并使确认失效，之后重新确认。零应付可核销券，无需生成零元支付。
+4. 收退款服务记录已确认的外部渠道结果，B不直接扣D钱包。退款锁定订单与原成功支付，累计不超过原支付并按流水幂等。退款后USED券暂保持原状，返券需B/D另定。
+5. 充电结束保留A占位，车辆驶离调用A释放。读取C的设备状态与共享停运计划拦截开单。维修恢复和停运登记按对接清单推进。
 
-## 本次交付后的推进
+## 队友交接与文件影响
 
-先由 D 在 8.0.46 上复验结构和跨模块表，同时 A/C 核对清单。B 下一阶段将独立版服务迁入 app 的公共连接，完成真实用户车辆开单、同枪并发、分时计费、支付补缴和部分退款。然后接 A 的资格与占位、C 的状态、D 的券核销和结算。组长随接口确认汇总全局图和统一字典。
+**A** 已实测预约与现场排队两条资格路径，复用核验、消费和释放服务。提前核验、迟到保留与B开单区间各有用途，若要预约结束后仍在宽限期内开单，双方同步修改区间及边界测试。B不另建占位表。
 
-第一阶段需求与设计来自老师任务书、小组计划和统一模板；本次物理结构以 sql/B 下的实际 SQL 为准，验证证据以第二天材料/实测为准。旧独立包中 b_demo_ 测试替身与私有连接配置仍供原测试复现，正式仓库本次接入仅包含真实 B 结构。
+**D** 可使用40笔已出账、足额支付订单和20笔次月退款继续结算。总原价504元、优惠40元、成功实收464元、退款60元、迄今净收404元。零应付无成功支付流水的结算口径需另定。本次对coupon_service.py做三处接入修正：释放与核销的支付判定使用FOR UPDATE当前读；释放券同时清除confirmed_at。函数签名保留，请D审查。
 
-## GitHub 提交说明
+**C** B已验证故障与排定停运拦截新开单。请C落实离线、故障、维修复核及恢复接口，并与A/B确认唯一停运登记人及心跳阈值，继续共用equipment_outage_plan。B没有新增自动恢复入口。
 
-本次在个人分支准备文件，完成审查后提交、推送，再向 dev 发起 PR。建议标题为 `feat: 接入B正式表结构并验证BD跨模块外键`，正文说明 16 表、124 字段、20 项结构检查、8.4.13 实测与 8.0.46 待复验，以及 A/C 清单。源代码管理中重点审查 sql/B、tests/verify_b_structure.py、B/第二天材料、B/README.md 和根 README 的新增导航。
+本次新增B代码、SQL增量、测试和第三天材料，同时更新本README、第二日对接清单导航及根README。数据库列仍为16表124字段，原图与字典保留。A实现和D表结构保持原版，D券服务必要改动如上。
+
+## 后续推进
+
+新增服务与触发器在8.0.46复验；C真实故障恢复与停运通知、D结算事务、钱包收退款和退款返券政策继续交接。设施维护入口、费率发布管理、前端、权限、复杂查询优化、备份恢复与最终报告按总计划继续验收。本次交易测试不替代这些验收记录。
+
+GitHub提交建议为 `feat: 接入B交易服务与ABD流程并提供结算测试数据`。检查个人分支改动后提交、推送并向dev发PR，请A核对资格与占位、D审查券服务修正和结算输入。
