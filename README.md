@@ -16,7 +16,7 @@
 - 平台与运营商之间的结算对账
 - 预约排队、备件库存、公告通知等新增业务的跨模块协作
 
-**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。B 的 16 张正式设施/订单表、D 的 9 张独立核心表与 3 张跨模块表、A 的 10 张预约排队/公告通知表均已在 MySQL 8.0.46 中完成建表、测试数据、约束、查询和事务验证；C 的 ③⑦ 数据字典与局部 E-R 图已提交，DDL 与持久层进度以 C 的最新分支为准。新增 ⑥⑦⑧ 三条业务线的视图/过程数量考核口径仍需向指导教师确认。
+**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。B 的 16 张正式设施/订单表、D 的 9 张独立核心表与 3 张跨模块表、A 的 10 张预约排队/公告通知表均已在 MySQL 8.0.46 中完成建表与结构验收；D 核心测试数据、约束、查询和事务及 B–D 20 项集成检查均已通过，A 模块的测试数据、约束、查询和事务验证也已完成。C 的 ③⑦ 数据字典与局部 E-R 图已提交，DDL 与持久层进度以 C 的最新分支为准。新增 ⑥⑦⑧ 三条业务线的视图/过程数量考核口径仍需向指导教师确认。
 
 ## 业务范围
 
@@ -145,7 +145,7 @@
 
 ## B 模块第二阶段交付
 
-B 已新增 16 张正式表、124 个字段、7 个设施触发器及 6 个查询视图，订单用户和车辆已按 D 的真实结构建立外键。D 核心表 → B 结构 → D 跨模块表的建表及 20 项结构检查已在独立 MySQL 8.4.13 实例通过，小组目标 8.0.46 待复验。详情见 [B 开发与接入说明](B/README.md)。
+B 已新增 16 张正式表、124 个字段、7 个设施触发器及 6 个查询视图，订单用户和车辆已按 D 的真实结构建立外键。D 核心表 → B 结构 → D 跨模块表的建表及 20 项结构检查已在本地 MySQL 8.0.46 全部通过，测试事务已回滚。详情见 [B 开发与接入说明](B/README.md)。
 
 [B 物理字典](B/第二天材料/B_第二天物理数据字典.xlsx)、[B 关系模式与范式说明](B/第二天材料/关系模式与设计说明.md)、[A/C/D 对接清单](B/第二天材料/ACD对接清单.md)和[验证记录](B/第二天材料/建表验证记录.md)可供继续汇总和联调。B 正式 Python 服务迁入及 A/C/D 业务事务联调为后续阶段。
 
@@ -178,6 +178,8 @@ A 已完成 ⑥ 预约、排队与到站管理，以及 ⑧ 场站服务公告�
 - 优惠活动使用 `Decimal` 计算固定减免和百分比折扣；100 元订单最优活动实测优惠 24 元
 - ④业务线已创建 3 个实用视图和 1 个只读优惠试算存储过程，数据库验收通过
 - ④最终综合回归 F01～F08 全部 PASS，核心表、约束、业务一致性和敏感字段检查正常
+- 3 张跨模块表已创建；3 个主键、7 个外键、4 个唯一约束和 5 个 CHECK 均通过 I01～I06 验收
+- B 的 16 张表、7 个触发器、6 个视图及 D 的 12 张表已完成 20 项集成检查，全部 PASS 且测试数据已回滚
 - D 模块原有 Python 单元测试 23 项全部通过；加入 A 模块后全仓 61 项单元测试全部通过
 
 快速验证：
@@ -188,6 +190,7 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
+.\.venv\Scripts\python.exe tests\verify_b_structure.py
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -373,7 +376,7 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
 
 ### 6. 初始化数据库结构
 
-④业务线的独立核心表可在 MySQL 客户端中按顺序执行：
+④业务线可在 MySQL 客户端中按依赖顺序执行：
 
 ```sql
 SOURCE sql/D/04_membership_core.sql;
@@ -382,9 +385,12 @@ SOURCE sql/D/04_membership_seed_core.sql;
 -- 核对 9 张表均为 20 行后手动执行 COMMIT;
 SOURCE sql/D/04_membership_constraint_tests.sql;
 SOURCE sql/D/04_membership_business_queries.sql;
+-- B 的 station、charging_order 创建完成后：
+SOURCE sql/D/04_membership_integration.sql;
+SOURCE sql/D/04_membership_integration_verify.sql;
 ```
 
-`04_membership_integration.sql` 依赖 B 模块的 `station` 和 `charging_order`，必须等接口表创建并复核字段类型后再执行。
+`04_membership_integration.sql` 依赖 B 模块的 `station` 和 `charging_order`；当前已按 B 正式结构在 MySQL 8.0.46 验证通过。脚本不会删除或覆盖已有表，首次执行前应确认不存在同名表。
 
 ### 7. 设置 Git 身份并同步代码
 
