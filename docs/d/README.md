@@ -13,7 +13,7 @@ D同学
 
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
-| ④ 用户与会员运营 | 12 张表结构及 B–D 联调已实测 | 9 张核心表及 3 张跨模块表均已在 MySQL 8.0.46 创建；核心数据、约束、查询、Python 持久层和 20 项 B–D 集成检查均已通过 |
+| ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
 | ⑤ 结算与对账 | 设计中 | 仅完成实体规划，DDL 与应用层未开始，依赖 B 的订单、支付和退款接口最终口径 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
@@ -41,10 +41,12 @@ D同学
 | `app/services/membership_service.py` | 会员等级变更事务服务 |
 | `app/services/fleet_service.py` | 车辆加入/退出车队事务服务 |
 | `app/services/promotion_service.py` | 固定减免、百分比折扣与最优活动计算服务 |
+| `app/services/coupon_service.py` | 优惠券发放、锁定、释放和成功支付核销事务服务 |
 | `app/run_membership_demo.py` | 连接与持久层演示入口 |
 | `app/run_membership_transaction_demo.py` | 真实数据库事务回滚演示入口 |
 | `app/run_fleet_transaction_demo.py` | 真实数据库调车事务回滚演示入口 |
 | `app/run_promotion_demo.py` | 全场活动筛选与最优优惠只读演示入口 |
+| `app/run_coupon_transaction_demo.py` | 发券→锁券→支付→核销的真实数据库回滚演示 |
 | `tests/` | 配置、持久层、事务服务的单元测试（不连接真实数据库） |
 
 ## 5. 已完成验收
@@ -66,10 +68,11 @@ D同学
 | 优惠计算 | 100 元订单匹配 20 个全场活动；最优活动 40019，优惠 24 元、实付 76 元 |
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
-| Python 单元测试 | 全仓 64 passed（包含公共连接时区、异常回滚和健康检查测试） |
+| Python 单元测试 | 全仓 73 passed（新增 9 项优惠券事务测试） |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
 | B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
+| 优惠券事务 | 发券、锁券、订单优惠、成功支付和核销均 PASS；回滚后券、订单、运营商和支付记录均为 0 |
 
 ## 6. 数据库实体
 
@@ -117,6 +120,7 @@ D同学
 12. `PERCENTAGE` 表示实付比例，例如 `0.80` 表示八折；优惠金额为订单金额的 20%，并受 `max_discount_amount` 封顶限制。
 13. 跨表业务校验（活动为 `SELECTED` 时至少关联一个场站、券是否属于订单用户等）放在事务性业务代码或存储过程中。
 14. Python 公共连接通过 `init_command` 在任何业务 SQL 执行前设置 `SET SESSION time_zone = '+08:00'`，统一优惠、订单与结算的时间口径。
+15. 优惠券事务按订单行→券行的固定顺序加锁；锁券同时写入订单优惠，支付失败释放时清零，成功支付足额后才更新为 `USED` 并写核销记录。
 
 ## 8. 执行与运行方式
 
@@ -151,6 +155,7 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
+.\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
 .\.venv\Scripts\python.exe tests\verify_b_structure.py
 .\.venv\Scripts\python.exe -m pytest -q
 ```
@@ -161,7 +166,7 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 
 1. `station`、`charging_order` 及其跨模块外键类型已经按 B 正式结构确认；`payment_record`、`refund_record` 的结算使用口径仍需与 B 确认。
 2. 订单、支付和退款统一使用 `+08:00` 会话时区；跨账期退款调整和平台分成口径仍需确认。
-3. 确认锁券与核销时点：支付成功时核销，支付失败、取消和退款后的恢复规则。
+3. 锁券、支付失败释放和支付成功核销已实现；取消订单可调用释放操作，退款后是否返券仍需确认。
 4. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
