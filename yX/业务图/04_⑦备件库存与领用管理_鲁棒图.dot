@@ -1,0 +1,60 @@
+digraph robustness_spare_inventory {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.3, ranksep=1.0];
+    node [fontname="Microsoft YaHei", fontsize=11];
+    edge [fontname="Microsoft YaHei", fontsize=9, color="#555555"];
+
+    subgraph cluster_boundary {
+        label="边界对象（Boundary）"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        b_warehouse [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                     label="«boundary»\n仓库操作界面"];
+        b_maintenance [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                       label="«boundary»\n维修备件操作界面"];
+        b_audit [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                 label="«boundary»\n库存查询与审计看板"];
+    }
+
+    subgraph cluster_control {
+        label="控制对象（Control）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        c_stock [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                 label="«control»\n库存控制器\n收货/调整/冲正"];
+        c_part [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                label="«control»\n工单备件控制器\n计划/领用/安装/退料"];
+        c_reconcile [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                     label="«control»\n工单结算校验器\n无损耗校验"];
+    }
+
+    subgraph cluster_entity {
+        label="实体对象（Entity）"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        e_part [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                label="spare_part\n备件档案"];
+        e_warehouse [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="warehouse\n仓库档案"];
+        e_inventory [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="inventory\n当前库存/锁定量/版本"];
+        e_txn [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+               label="inventory_transaction\n不可变库存流水"];
+        e_work_order [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                      label="maintenance_work_order\n③维修工单"];
+        e_work_order_part [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                           label="work_order_part\n计划/领用/安装/退回"];
+    }
+
+    b_warehouse -> c_stock [label="收货/盘点/冲正"];
+    c_stock -> e_inventory [label="行锁+版本号更新"];
+    c_stock -> e_txn [label="同事务追加流水"];
+    c_stock -> e_part [label="校验备件状态", style=dashed];
+    c_stock -> e_warehouse [label="校验仓库状态", style=dashed];
+    b_maintenance -> c_part [label="计划/领用/安装/退料"];
+    c_part -> e_work_order [label="校验工单状态", style=dashed];
+    c_part -> e_work_order_part [label="更新数量状态"];
+    c_part -> e_inventory [label="锁定并变更库存"];
+    c_part -> e_txn [label="追加 ISSUE/RETURN 流水"];
+    b_audit -> e_inventory [label="查询可用库存", style=dotted];
+    b_audit -> e_txn [label="追溯不可变流水", style=dotted];
+    c_reconcile -> e_work_order_part [label="检查领用=安装+退回", style=dashed];
+    c_reconcile -> e_work_order [label="满足后才可关单", style=dashed];
+}

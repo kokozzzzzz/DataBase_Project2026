@@ -1,0 +1,72 @@
+digraph use_case_spare_inventory {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.35, ranksep=0.9, compound=true];
+    node [fontname="Microsoft YaHei", fontsize=12];
+    edge [fontname="Microsoft YaHei", fontsize=10, color="#555555"];
+
+    subgraph cluster_actors_left {
+        label=""; style=invis;
+        warehouse_staff [shape=box, style="rounded,filled", fillcolor="#FFF2CC", color="#BF9000",
+                         label="仓库操作员\n（收货/发料/盘点）"];
+        maintainer [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                    label="维修人员\n（备件计划/安装/退料）"];
+    }
+
+    subgraph cluster_system {
+        label="⑦ 备件库存与领用管理系统边界";
+        fontsize=14; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F7FBFF";
+
+        uc_catalog [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                    label="维护备件与仓库档案"];
+        uc_receive [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                    label="备件收货入库"];
+        uc_plan [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                 label="制定工单备件计划"];
+        uc_issue [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                  label="工单领用备件"];
+        uc_install [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                    label="登记安装数量"];
+        uc_return [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                   label="退回未安装备件"];
+        uc_adjust [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                   label="有原因的库存调整"];
+        uc_reverse [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                    label="冲正错误库存流水"];
+        uc_query [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                  label="查询可用库存与流水"];
+        uc_reconcile [shape=ellipse, style=filled, fillcolor="#E2F0D9", color="#548235",
+                      label="核对工单备件并关单"];
+        rule [shape=note, style=filled, fillcolor="#FFF2CC", color="#BF9000",
+              label="无损耗规则\n领用数量 = 安装数量 + 退回数量"];
+    }
+
+    subgraph cluster_actors_right {
+        label=""; style=invis;
+        supervisor [shape=box, style="rounded,filled", fillcolor="#EDE7F6", color="#5E35B1",
+                    label="库存管理员\n（查账/复核）"];
+        work_order [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+                    label="③维修工单\n（计划与领用关联）"];
+    }
+
+    warehouse_staff -> uc_receive;
+    warehouse_staff -> uc_adjust;
+    warehouse_staff -> uc_reverse;
+    warehouse_staff -> uc_query;
+    maintainer -> uc_plan;
+    maintainer -> uc_issue;
+    maintainer -> uc_install;
+    maintainer -> uc_return;
+    supervisor -> uc_query;
+    work_order -> uc_plan [style=dashed, label="工单状态校验"];
+    work_order -> uc_reconcile [style=dashed, label="关闭前对账"];
+
+    uc_plan -> uc_issue [style=dashed, label="«include»\n已计划备件"];
+    uc_issue -> uc_reconcile [style=dashed, label="领用后持续跟踪"];
+    uc_install -> uc_reconcile [style=dashed];
+    uc_return -> uc_reconcile [style=dashed];
+    uc_reconcile -> rule [style=dotted, label="满足后方可关闭"];
+    uc_receive -> uc_query [style=dotted, label="流水留痕"];
+    uc_adjust -> uc_query [style=dotted, label="流水留痕"];
+    uc_reverse -> uc_query [style=dotted, label="追加反向流水"];
+}

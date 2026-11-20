@@ -1,0 +1,62 @@
+digraph use_case_device_maintenance {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.35, ranksep=0.9, compound=true];
+    node [fontname="Microsoft YaHei", fontsize=12];
+    edge [fontname="Microsoft YaHei", fontsize=10, color="#555555"];
+
+    subgraph cluster_actors_left {
+        label=""; style=invis;
+        gateway [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+                 label="设备采集网关\n（上传遥测数据）"];
+        maintainer [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                    label="维修人员\n（接单/到场/维修）"];
+    }
+
+    subgraph cluster_system {
+        label="③ 设备监控与故障工单系统边界";
+        fontsize=14; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F7FBFF";
+
+        uc_ingest [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                   label="接收设备遥测"];
+        uc_alarm [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                  label="识别故障并生成/合并告警"];
+        uc_board [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                  label="查询设备健康与告警看板"];
+        uc_dispatch [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                     label="派发维修工单"];
+        uc_progress [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                     label="接单/到场/登记修复"];
+        uc_verify [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                   label="复核维修结果"];
+        uc_rework [shape=ellipse, style=filled, fillcolor="#FCE4D6", color="#C55A11",
+                   label="复核失败并返回维修"];
+        uc_cancel [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597",
+                   label="取消未接单工单"];
+        uc_restore [shape=ellipse, style=filled, fillcolor="#E2F0D9", color="#548235",
+                    label="关闭告警/离线待办并恢复设备"];
+    }
+
+    subgraph cluster_actors_right {
+        label=""; style=invis;
+        operator [shape=box, style="rounded,filled", fillcolor="#FFF2CC", color="#BF9000",
+                  label="平台运维人员\n（派单/复核/看板）"];
+        facility [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+                  label="B 设施设备模块\n（桩枪状态/离线待办）"];
+    }
+
+    gateway -> uc_ingest;
+    maintainer -> uc_progress;
+    maintainer -> uc_board;
+    operator -> uc_dispatch;
+    operator -> uc_verify;
+    operator -> uc_cancel;
+    operator -> uc_board;
+    facility -> uc_restore [style=dashed, label="共享设备状态与待办"];
+
+    uc_ingest -> uc_alarm [style=dashed, label="«extend»\n检测到故障码"];
+    uc_alarm -> uc_dispatch [style=dashed, label="«include»\n需维修时"];
+    uc_progress -> uc_verify [style=dashed, label="«include»"];
+    uc_verify -> uc_rework [style=dashed, label="«extend»\n复核未通过"];
+    uc_verify -> uc_restore [style=dashed, label="«extend»\n通过且无其他未结工单"];
+}
