@@ -13,12 +13,13 @@ VALID_USER_STATUSES = frozenset({"ACTIVE", "DISABLED", "CLOSED"})
 
 
 def fetch_database_health(connection: Connection) -> dict[str, Any]:
-    """返回数据库版本、当前库和核心表数量，用于连接健康检查。"""
+    """返回版本、当前库、会话时区和核心表数量，用于连接健康检查。"""
 
     sql = """
         SELECT
             VERSION() AS mysql_version,
             DATABASE() AS database_name,
+            @@session.time_zone AS session_time_zone,
             (
                 SELECT COUNT(*)
                 FROM information_schema.TABLES

@@ -31,6 +31,7 @@ def main() -> int:
         "连接成功："
         f"MySQL {health['mysql_version']}，"
         f"数据库 {health['database_name']}，"
+        f"会话时区 {health['session_time_zone']}，"
         f"④核心表 {health['core_table_count']}/9"
     )
     print("前 5 名有效用户：")
