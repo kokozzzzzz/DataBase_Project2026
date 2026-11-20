@@ -1,0 +1,110 @@
+{
+  "environment": {
+    "version": "8.0.46",
+    "collation_name": "utf8mb4_0900_ai_ci"
+  },
+  "row_counts": {
+    "charging_reservation": 20,
+    "reservation_status_log": 25,
+    "queue_record": 20,
+    "queue_status_log": 25,
+    "arrival_checkin": 20,
+    "parking_occupancy": 20,
+    "station_notice": 21,
+    "notice_revision": 47,
+    "notice_recipient": 20,
+    "notification_record": 20
+  },
+  "checks": [
+    {
+      "检查": "10 张 A 表全部存在",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "A 表均为 InnoDB / utf8mb4_0900_ai_ci",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "8 个 A 视图全部存在",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "14 个 A 存储过程全部存在",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "13 个 A 触发器全部存在",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "每张 A 表至少 20 条测试数据",
+      "结果": "PASS",
+      "说明": "{'charging_reservation': 20, 'reservation_status_log': 25, 'queue_record': 20, 'queue_status_log': 25, 'arrival_checkin': 20, 'parking_occupancy': 20, 'station_notice': 21, 'notice_revision': 47, 'notice_recipient': 20, 'notification_record': 20}"
+    },
+    {
+      "检查": "不存在同枪有效预约重叠",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "不存在同一车位重复有效占用",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "不存在同一用户重复有效排队",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "通知状态与时间字段一致",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "预约创建后可到站核验并自动生成车位占用",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "预约/核验/占用样例回滚后行数不变",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "定向停运公告发布生成接收人与待发送通知",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "撤回公告取消未发送通知",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "公告/接收人/通知样例回滚后行数不变",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "同枪并发预约只允许一个事务成功",
+      "结果": "PASS",
+      "说明": ""
+    },
+    {
+      "检查": "并发样例清理后无残留有效预约",
+      "结果": "PASS",
+      "说明": ""
+    }
+  ],
+  "summary": {
+    "passed": 17,
+    "failed": 0,
+    "total": 17
+  }
+}
