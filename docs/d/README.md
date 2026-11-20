@@ -28,6 +28,7 @@ D同学
 | `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
 | `sql/D/05_settlement_schema.sql` | ⑤ 五张正式业务表 DDL，不含删除语句，依赖 B 的运营商、场站、订单、支付和退款表 |
 | `sql/D/05_settlement_verify.sql` | ⑤ 表数量、字段、约束、外键、类型、生成列和引擎的只读验收脚本 |
+| `sql/D/05_settlement_seed_preflight.sql` | ⑤ 测试数据前只读检查：现有 B 订单、费用分段、成功支付、退款及可结算订单规模 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |

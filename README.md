@@ -141,6 +141,7 @@
 | [⑤结算与对账建表前检查](sql/D/05_settlement_preflight.sql) | B 依赖、编号类型、引擎排序规则与目标表不存在性的只读检查 |
 | [⑤结算与对账 DDL](sql/D/05_settlement_schema.sql) | 五张正式业务表、跨 B 外键、状态约束、生成列和索引 |
 | [⑤结算与对账结构验收](sql/D/05_settlement_verify.sql) | 表、字段、约束、外键、类型、生成列和引擎的只读检查 |
+| [⑤测试数据依赖检查](sql/D/05_settlement_seed_preflight.sql) | 只读统计现有 B 订单、费用分段、成功支付、退款和可结算订单规模 |
 | [A 模块开发说明](docs/a/README.md) | ⑥预约排队、⑧公告通知的状态、交付物、接口、运行方式和实测结果 |
 | [⑥预约排队设计说明](docs/a/06_reservation_queue.md) | ⑥需求、E-R、3NF、DDL、并发控制、视图、查询与测试 |
 | [⑧公告通知设计说明](docs/a/08_notice.md) | ⑧公告状态机、版本、接收人、通知状态机、视图与测试 |
