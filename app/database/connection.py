@@ -11,11 +11,14 @@ from pymysql.connections import Connection
 from .config import DatabaseConfig
 
 
+SESSION_TIME_ZONE = "+08:00"
+
+
 @contextmanager
 def database_connection(
     config: DatabaseConfig | None = None,
 ) -> Iterator[Connection]:
-    """创建并可靠关闭连接；发生异常时回滚尚未提交的事务。"""
+    """创建东八区会话连接并可靠关闭；异常时回滚未提交事务。"""
 
     actual_config = config or DatabaseConfig.from_env()
     connection = pymysql.connect(
@@ -28,6 +31,7 @@ def database_connection(
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
         connect_timeout=5,
+        init_command=f"SET SESSION time_zone = '{SESSION_TIME_ZONE}'",
     )
 
     try:

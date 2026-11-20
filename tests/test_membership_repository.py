@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from app.database.membership_repository import (
+    fetch_database_health,
     list_available_global_promotions,
     list_user_profiles,
 )
@@ -26,9 +27,16 @@ class FakeCursor:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def execute(self, sql: str, parameters: list[Any] | tuple[Any, ...]) -> None:
+    def execute(
+        self,
+        sql: str,
+        parameters: list[Any] | tuple[Any, ...] = (),
+    ) -> None:
         self.sql = sql
         self.parameters = list(parameters)
+
+    def fetchone(self) -> dict[str, Any] | None:
+        return self.rows[0] if self.rows else None
 
     def fetchall(self) -> list[dict[str, Any]]:
         return self.rows
@@ -40,6 +48,22 @@ class FakeConnection:
 
     def cursor(self) -> FakeCursor:
         return self.fake_cursor
+
+
+def test_fetch_database_health_includes_session_time_zone() -> None:
+    expected_row = {
+        "mysql_version": "8.0.46",
+        "database_name": "charging_platform",
+        "session_time_zone": "+08:00",
+        "core_table_count": 9,
+    }
+    cursor = FakeCursor([expected_row])
+    connection = FakeConnection(cursor)
+
+    actual_row = fetch_database_health(connection)  # type: ignore[arg-type]
+
+    assert actual_row == expected_row
+    assert "@@session.time_zone AS session_time_zone" in cursor.sql
 
 
 def test_list_user_profiles_uses_parameters() -> None:

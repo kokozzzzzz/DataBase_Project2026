@@ -26,7 +26,7 @@
    - 提供用户会员档案、等级历史、企业车队、额度和活动等核心业务查询。
    - 全部为只读查询，不依赖 B 模块的场站和订单表。
 7. `app/database/`
-   - 从 `.env` 读取连接参数，并提供自动关闭、异常回滚的 PyMySQL 连接上下文。
+   - 从 `.env` 读取连接参数，统一初始化 `+08:00` 会话时区，并提供自动关闭、异常回滚的 PyMySQL 连接上下文。
    - `membership_repository.py` 提供参数化的用户会员档案查询和健康检查。
 8. `app/run_membership_demo.py`
    - 验证 Python 能连接 `charging_platform`，并展示前 5 名有效用户。
@@ -66,13 +66,13 @@
 
 - 核心表 9/9 创建成功，每表 20 条测试数据并已提交。
 - DDL 结构检查、约束测试 T01～T08、业务查询 Q01～Q09 均通过。
-- Python 连接验证识别 MySQL 8.0.46、`charging_platform` 和 9/9 张核心表。
+- Python 连接验证识别 MySQL 8.0.46、`charging_platform`、`+08:00` 会话时区和 9/9 张核心表。
 - 会员等级事务演示在回滚后恢复原等级且不保留历史记录，PASS。
 - 车队调车事务演示保证事务内仅一条 `ACTIVE` 关系，回滚后恢复原车队，PASS。
 - 100 元订单筛选出 20 个全场活动，最优活动 40019 优惠 24 元、实付 76 元，PASS。
 - 3 个实用视图创建成功，敏感字段暴露为 0，当前测试数据均返回 20 行，PASS。
 - 只读优惠试算存储过程创建成功，固定减免、八折比例和门槛不足场景均通过。
-- Python 单元测试共 23 项，全部通过。
+- 加入 A 模块与公共连接时区测试后，全仓 Python 单元测试共 64 项，全部通过。
 - 3 张跨模块表已在 MySQL 8.0.46 创建成功：3 个主键、7 个外键、4 个唯一约束和 5 个 CHECK 约束全部通过验收。
 - `promotion_station.station_id`、`coupon.locked_order_id` 和 `coupon_redemption.order_id` 已连接 B 的正式场站、订单结构，3 个跨模块外键均通过。
 - `tests/verify_b_structure.py` 的 20 项 B–D 集成检查全部 PASS，测试事务已回滚，未留下样例数据。
@@ -85,6 +85,7 @@
 - 金额使用 `DECIMAL`，不使用 `FLOAT` 或 `DOUBLE`。
 - 手机号、车牌和企业信用代码保存密文；查重使用 HMAC-SHA256 摘要。
 - `user` 在 SQL 中统一写成 `` `user` ``，避免与 MySQL 内置对象混淆。
+- 所有 Python 数据库连接在建立时自动设置 `SET SESSION time_zone = '+08:00'`，避免服务器 `SYSTEM` 时区差异影响时间判断。
 - `fleet_vehicle` 使用代理主键保存历史加入/退出记录；同一车辆只能有一条有效关联的规则后续由事务或触发器实现。
 - `promotion.total_quantity` 使用 `NULL` 表示不限量，避免把 `0` 同时解释为未发放或不限量。
 - 一张优惠券最多成功核销一次，一笔订单最多使用一张优惠券，由两个唯一约束保证。
