@@ -1,0 +1,109 @@
+digraph er_notice {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.45, ranksep=1.1, splines=true];
+    node [fontname="Microsoft YaHei", fontsize=10, shape=plaintext];
+    edge [fontname="Microsoft YaHei", fontsize=9, color="#555555",
+          dir=both, arrowtail=tee, arrowhead=crow];
+
+    subgraph cluster_master {
+        label="基础主数据（B 场站 / C 停运计划 / D 用户车辆）"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        station [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>station 场站</B></TD></TR>
+            <TR><TD ALIGN="LEFT">station_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">name / status</TD></TR>
+            </TABLE>>];
+        outage [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>equipment_outage_plan 停运计划</B></TD></TR>
+            <TR><TD ALIGN="LEFT">outage_plan_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id (FK) / gun_id</TD></TR>
+            <TR><TD ALIGN="LEFT">starts_at / ends_at / status</TD></TR>
+            </TABLE>>];
+        user [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>user 用户</B></TD></TR>
+            <TR><TD ALIGN="LEFT">user_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_status</TD></TR>
+            </TABLE>>];
+        vehicle [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>vehicle 车辆</B></TD></TR>
+            <TR><TD ALIGN="LEFT">vehicle_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id (FK)</TD></TR>
+            </TABLE>>];
+        reservation [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>charging_reservation 预约</B></TD></TR>
+            <TR><TD ALIGN="LEFT">reservation_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id / vehicle_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id / station_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">starts_at / ends_at / status</TD></TR>
+            </TABLE>>];
+        queue [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#FCE4D6"><B>queue_record 排队</B></TD></TR>
+            <TR><TD ALIGN="LEFT">queue_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id / vehicle_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id / gun_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">status</TD></TR>
+            </TABLE>>];
+    }
+
+    subgraph cluster_notice {
+        label="⑧ 场站服务公告与通知（A 主维护）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        notice [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>station_notice 公告</B></TD></TR>
+            <TR><TD ALIGN="LEFT">notice_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">related_outage_plan_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">notice_type / severity</TD></TR>
+            <TR><TD ALIGN="LEFT">title / content</TD></TR>
+            <TR><TD ALIGN="LEFT">status / effective_from / effective_to</TD></TR>
+            <TR><TD ALIGN="LEFT">published_at / withdrawn_at</TD></TR>
+            </TABLE>>];
+        revision [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>notice_revision 版本快照</B></TD></TR>
+            <TR><TD ALIGN="LEFT">revision_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">notice_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">revision_no (UNIQUE with notice)</TD></TR>
+            <TR><TD ALIGN="LEFT">action / title / content</TD></TR>
+            <TR><TD ALIGN="LEFT">changed_at / changed_by</TD></TR>
+            </TABLE>>];
+        recipient [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>notice_recipient 接收对象</B></TD></TR>
+            <TR><TD ALIGN="LEFT">recipient_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">notice_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">user_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">vehicle_id / reservation_id / queue_id</TD></TR>
+            <TR><TD ALIGN="LEFT">recipient_reason / created_at</TD></TR>
+            <TR><TD ALIGN="LEFT">UNIQUE (notice_id, user_id)</TD></TR>
+            </TABLE>>];
+        notification [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+            <TR><TD BGCOLOR="#DDEBF7"><B>notification_record 发送记录</B></TD></TR>
+            <TR><TD ALIGN="LEFT">notification_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">recipient_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">channel (UNIQUE with recipient)</TD></TR>
+            <TR><TD ALIGN="LEFT">status / sent_at / read_at</TD></TR>
+            <TR><TD ALIGN="LEFT">failure_reason / retry_count</TD></TR>
+            <TR><TD ALIGN="LEFT">provider_message_id</TD></TR>
+            </TABLE>>];
+    }
+
+    station -> notice [label="1:N 发布"];
+    outage -> notice [label="1:N 关联", style=dashed];
+    station -> outage [label="1:N 登记", style=dashed];
+    notice -> revision [label="1:N 版本"];
+    notice -> recipient [label="1:N 接收"];
+    user -> recipient [label="1:N 接收"];
+    vehicle -> recipient [label="1:N 关联", style=dashed];
+    reservation -> recipient [label="0..1:1 受影响", style=dashed];
+    queue -> recipient [label="0..1:1 受影响", style=dashed];
+    recipient -> notification [label="1:N 按渠道"];
+}

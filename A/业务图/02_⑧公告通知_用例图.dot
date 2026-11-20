@@ -1,0 +1,60 @@
+digraph use_case_notice {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.35, ranksep=0.9];
+    node [fontname="Microsoft YaHei", fontsize=12];
+    edge [fontname="Microsoft YaHei", fontsize=10, color="#555555"];
+
+    subgraph cluster_actors_left {
+        label=""; style=invis;
+        ops [shape=box, style="rounded,filled", fillcolor="#FFF2CC", color="#BF9000",
+             label="场站运维人员\n（登记停运事实）"];
+        admin [shape=box, style="rounded,filled", fillcolor="#EDE7F6", color="#5E35B1",
+               label="平台运营管理员\n（公告发布/撤回/统计）"];
+    }
+
+    subgraph cluster_system {
+        label="⑧ 场站服务公告与通知系统边界";
+        fontsize=14; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F7FBFF";
+
+        uc_view [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="查看公开公告"];
+        uc_create [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="创建公告草稿"];
+        uc_edit [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="修改公告"];
+        uc_publish [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="发布公告"];
+        uc_withdraw [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="撤回公告"];
+        uc_revision [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="保留版本快照"];
+        uc_recipient [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="生成定向接收人"];
+        uc_send [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="发送通知"];
+        uc_stats [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="查看送达/阅读统计"];
+        uc_expire [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="公告自动过期"];
+    }
+
+    subgraph cluster_actors_right {
+        label=""; style=invis;
+        driver [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                label="车主用户\n（受影响预约/排队用户）"];
+        channel [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+                 label="通知渠道\n（IN_APP/SMS/PUSH）"];
+        plan [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+              label="B/C 共享停运计划\n（唯一数据源）"];
+    }
+
+    ops -> uc_create;
+    admin -> uc_create;
+    admin -> uc_edit;
+    admin -> uc_publish;
+    admin -> uc_withdraw;
+    admin -> uc_stats;
+    driver -> uc_view;
+    channel -> uc_send;
+    plan -> uc_recipient [style=dashed, label="读取停运范围"];
+
+    uc_create -> uc_revision [style=dashed, label="«include»"];
+    uc_edit -> uc_revision [style=dashed, label="«include»"];
+    uc_publish -> uc_revision [style=dashed, label="«include»"];
+    uc_withdraw -> uc_revision [style=dashed, label="«include»"];
+    uc_publish -> uc_recipient [style=dashed, label="«include»\n仅定向停运公告"];
+    uc_recipient -> uc_send [style=dashed, label="«include»"];
+    uc_publish -> uc_view [style=dotted, label="公开公告可见"];
+    uc_expire -> uc_revision [style=dashed, label="«include»"];
+}

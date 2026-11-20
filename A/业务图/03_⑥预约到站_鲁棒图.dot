@@ -1,0 +1,72 @@
+digraph robustness_reservation {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.3, ranksep=1.0];
+    node [fontname="Microsoft YaHei", fontsize=11];
+    edge [fontname="Microsoft YaHei", fontsize=9, color="#555555"];
+
+    subgraph cluster_boundary {
+        label="边界对象（Boundary）"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        b_booking [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                   label="«boundary»\n车主预约界面"];
+        b_checkin [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                   label="«boundary»\n到站核验界面"];
+        b_queue [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                 label="«boundary»\n场站叫号看板"];
+    }
+
+    subgraph cluster_control {
+        label="控制对象（Control）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        c_reservation [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                       label="«control»\n预约控制器\n创建/取消/改约"];
+        c_checkin [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                   label="«control»\n到站核验控制器\n窗口/设备/车位校验"];
+        c_queue [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                 label="«control»\n叫号控制器\n优先级/超时"];
+        c_occupy [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n车位占用控制器\n入位/释放"];
+    }
+
+    subgraph cluster_entity {
+        label="实体对象（Entity）"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        e_reservation [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                       label="charging_reservation\n预约"];
+        e_queue [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="queue_record\n排队"];
+        e_checkin [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                   label="arrival_checkin\n到站核验"];
+        e_occupancy [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="parking_occupancy\n车位占用"];
+        e_facility [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                    label="charging_gun / station\n设施与营业时间"];
+        e_party [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="user / vehicle\n用户与车辆"];
+        e_outage [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                  label="equipment_outage_plan\n共享停运计划"];
+        e_order [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="charging_order\nB 订单（资格消费）"];
+    }
+
+    b_booking -> c_reservation [label="提交预约/取消/改约"];
+    c_reservation -> e_reservation [label="锁定枪行后写入/更新"];
+    c_reservation -> e_party [label="校验用户/车辆", style=dashed];
+    c_reservation -> e_facility [label="校验枪状态/营业时间", style=dashed];
+    c_reservation -> e_outage [label="校验停运冲突", style=dashed];
+
+    b_checkin -> c_checkin [label="扫码/人工核验"];
+    c_checkin -> e_reservation [label="置 CHECKED_IN", style=dashed];
+    c_checkin -> e_queue [label="置 CHECKED_IN", style=dashed];
+    c_checkin -> e_checkin [label="写入核验"];
+    c_checkin -> e_occupancy [label="触发器自动占位"];
+    c_checkin -> e_facility [label="校验车位/枪", style=dashed];
+    c_checkin -> e_order [label="校验无进行中订单", style=dashed];
+
+    b_queue -> c_queue [label="叫下一号"];
+    c_queue -> e_queue [label="按优先级取号/置 CALLED", style=dashed];
+    c_queue -> b_queue [label="返回叫号结果", style=dotted];
+
+    c_occupy -> e_occupancy [label="释放车位"];
+    c_occupy -> e_order [label="检查充电是否结束", style=dashed];
+}

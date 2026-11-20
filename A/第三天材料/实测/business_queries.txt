@@ -1,0 +1,51 @@
+station_id	station_name	reservation_date	total_reservations	active_reservations	consumed_reservations	cancelled_reservations	expired_reservations	fulfillment_rate_pct	unique_users	unique_vehicles
+9103	测试场站三	2026-11-18	4	0	4	0	0	100.00	4	4
+9104	测试场站四	2026-11-18	1	0	1	0	0	100.00	1	1
+9104	测试场站四	2026-11-19	1	0	0	0	1	0.00	1	1
+9102	测试场站二	2026-11-20	4	4	0	0	0	0.00	4	4
+9103	测试场站三	2026-11-20	1	1	0	0	0	0.00	1	1
+9104	测试场站四	2026-11-21	3	0	0	3	0	0.00	3	3
+9101	测试场站一	2026-11-24	5	5	0	0	0	0.00	5	5
+9102	测试场站二	2026-11-24	1	1	0	0	0	0.00	1	1
+station_id	station_name	reservations	arrived_checkins	parking_occupancies	created_orders	arrival_rate_pct	order_rate_pct
+9101	测试场站一	5	0	0	0	0.00	0.00
+9102	测试场站二	5	4	4	0	80.00	0.00
+9103	测试场站三	5	5	5	4	100.00	80.00
+9104	测试场站四	5	1	1	1	20.00	20.00
+station_id	station_name	status	ticket_count	avg_wait_minutes	expired_count	arrived_count	ordered_count	conversion_rate_pct
+9101	测试场站一	WAITING	4	109.50	0	0	0	0.00
+9101	测试场站一	CALLED	1	5.00	0	0	0	0.00
+9101	测试场站一	CHECKED_IN	5	5.00	0	5	0	0.00
+9101	测试场站一	CANCELLED	2	93.50	0	0	0	0.00
+9101	测试场站一	EXPIRED	1	92.00	1	0	0	0.00
+9102	测试场站二	CALLED	2	5.00	0	0	0	0.00
+9102	测试场站二	CONSUMED	1	5.00	0	1	1	100.00
+9104	测试场站四	CONSUMED	4	5.00	0	4	4	100.00
+station_id	station_name	space_code	user_name	vehicle_model	gun_no	occupied_at	occupied_minutes	order_id	order_state	charging_ended_at	minutes_since_charge_end
+9103	测试场站三	TEST-SPACE-15	测试用户15	测试车型15	2	2026-11-18 11:05:00	2807	8004	BILLED	2026-11-18 12:05:00	2747
+notice_id	title	station_id	station_name	outage_starts_at	outage_ends_at	recipient_count	delivered_count	read_count	failed_count	affected_reservations	affected_cancelled	affected_expired	affected_consumed
+3011	1号枪计划停运	9101	测试场站一	2026-12-01 08:00:00	2026-12-01 12:00:00	1	0	0	1	1	0	0	0
+3012	2号枪计划停运	9102	测试场站二	2026-12-02 08:00:00	2026-12-02 12:00:00	1	0	0	0	1	0	0	0
+3013	3号枪紧急停运	9103	测试场站三	2026-12-03 08:00:00	2026-12-03 12:00:00	1	1	0	0	1	0	0	0
+3014	4号枪计划停运	9104	测试场站四	2026-12-04 08:00:00	2026-12-04 12:00:00	1	1	1	0	1	0	0	0
+3015	5号枪计划停运	9101	测试场站一	2026-12-05 08:00:00	2026-12-05 12:00:00	1	0	0	1	1	0	0	0
+3016	6号枪计划停运	9102	测试场站二	2026-12-06 08:00:00	2026-12-06 12:00:00	1	0	0	1	1	0	0	0
+3017	7号枪计划停运	9103	测试场站三	2026-12-07 08:00:00	2026-12-07 12:00:00	1	0	0	1	1	0	0	0
+3018	8号枪停运通知	9104	测试场站四	2026-12-08 08:00:00	2026-12-08 12:00:00	1	1	1	0	1	0	0	0
+3019	9号枪停运通知	9101	测试场站一	2026-12-09 08:00:00	2026-12-09 12:00:00	1	1	1	0	1	0	0	0
+3020	10号枪停运通知	9102	测试场站二	2026-12-10 08:00:00	2026-12-10 12:00:00	1	1	1	0	1	0	0	0
+station_id	station_name	notice_type	severity	notice_count	recipient_count	notification_count	delivered_count	read_count	failed_count	delivery_rate_pct	read_rate_pct
+9101	测试场站一	PUBLIC	INFO	2	2	2	2	0	0	100.00	0.00
+9101	测试场站一	PUBLIC	EMERGENCY	1	1	1	1	0	0	100.00	0.00
+9101	测试场站一	OUTAGE_TARGETED	INFO	1	1	1	1	1	0	100.00	100.00
+9101	测试场站一	OUTAGE_TARGETED	WARNING	2	2	2	0	0	2	0.00	0.00
+9102	测试场站二	PUBLIC	INFO	2	2	2	2	2	0	100.00	100.00
+9102	测试场站二	PUBLIC	WARNING	1	1	1	1	1	0	100.00	100.00
+9102	测试场站二	OUTAGE_TARGETED	INFO	1	1	1	1	1	0	100.00	100.00
+9102	测试场站二	OUTAGE_TARGETED	WARNING	2	2	2	0	0	1	0.00	0.00
+9103	测试场站三	PUBLIC	WARNING	2	2	2	0	0	2	0.00	0.00
+9103	测试场站三	OUTAGE_TARGETED	WARNING	1	1	1	0	0	1	0.00	0.00
+9103	测试场站三	OUTAGE_TARGETED	EMERGENCY	1	1	1	1	0	0	100.00	0.00
+9104	测试场站四	PUBLIC	INFO	2	2	2	0	0	0	0.00	0.00
+9104	测试场站四	OUTAGE_TARGETED	INFO	1	1	1	1	1	0	100.00	100.00
+9104	测试场站四	OUTAGE_TARGETED	WARNING	1	1	1	1	1	0	100.00	100.00
