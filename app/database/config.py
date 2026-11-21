@@ -22,6 +22,7 @@ class DatabaseConfig:
     password: str
     database: str
     charset: str = "utf8mb4"
+    ssl_ca: str | None = None
 
     @classmethod
     def from_env(cls, *, load_env_file: bool = True) -> "DatabaseConfig":
@@ -56,4 +57,5 @@ class DatabaseConfig:
             password=password,
             database=database,
             charset=os.getenv("DB_CHARSET", "utf8mb4"),
+            ssl_ca=os.getenv("DB_SSL_CA") or None,
         )

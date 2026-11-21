@@ -25,18 +25,18 @@ JOIN (
     SELECT 'C_VIEWS', COUNT(*)
     FROM information_schema.views
     WHERE table_schema = DATABASE()
-      AND table_name LIKE 'v_c_%'
+      AND LEFT(table_name, 4) = 'v_c_'
     UNION ALL
     SELECT 'C_PROCEDURES', COUNT(*)
     FROM information_schema.routines
     WHERE routine_schema = DATABASE()
       AND routine_type = 'PROCEDURE'
-      AND routine_name LIKE 'sp_c_%'
+      AND LEFT(routine_name, 5) = 'sp_c_'
     UNION ALL
     SELECT 'C_TRIGGERS', COUNT(*)
     FROM information_schema.triggers
     WHERE trigger_schema = DATABASE()
-      AND trigger_name LIKE 'c_%'
+      AND LEFT(trigger_name, 2) = 'c_'
 ) AS actual USING (object_type);
 
 SELECT table_name, table_rows AS estimated_rows

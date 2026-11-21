@@ -1,7 +1,7 @@
 """B 正式交易服务。调用方使用公共 transaction(connection) 控制整笔提交和回滚。"""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from .charging_billing import ChargingError, _calculate
@@ -69,7 +69,7 @@ def open_order(connection, *, user_id, vehicle_id, gun_id, channel,
         if qualification['status'] != 'CHECKED_IN':
             raise ChargingError('资格尚未核验或已经失效')
         if channel == 'RESERVATION':
-            valid = qualification['starts_at'] <= at < qualification['ends_at']
+            valid = qualification['starts_at'] <= at < qualification['ends_at'] + timedelta(minutes=qualification['late_grace_minutes'])
         else:
             valid = qualification['called_at'] <= at < qualification['call_expires_at']
         if not valid:

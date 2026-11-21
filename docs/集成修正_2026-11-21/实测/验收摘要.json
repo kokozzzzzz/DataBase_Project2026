@@ -1,0 +1,9 @@
+{
+  "mysql": "8.0.46",
+  "time_zone": "+08:00",
+  "unit_tests": 101,
+  "b_workflow_checks": 17,
+  "c_acceptance_checks": 16,
+  "abcd_scenarios": 7,
+  "c_constraint_checks": 8
+}

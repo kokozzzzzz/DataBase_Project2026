@@ -1,0 +1,359 @@
+section
+=== A 06/08 structure and data ===
+check_name	actual_value	result
+A01 MySQL version	8.0.46	PASS
+check_name	actual_value	result
+A02 database collation	utf8mb4_0900_ai_ci	PASS
+check_name	actual_value	result
+A03 A table count	10	PASS
+check_name	actual_value	result
+A04 A view count	8	PASS
+check_name	actual_value	result
+A05 A procedure count	14	PASS
+check_name	actual_value	result
+A06 A trigger count	13	PASS
+check_name	table_name	row_count	result
+A07 row counts	charging_reservation	60	PASS
+A07 row counts	reservation_status_log	145	PASS
+A07 row counts	queue_record	20	PASS
+A07 row counts	queue_status_log	25	PASS
+A07 row counts	arrival_checkin	60	PASS
+A07 row counts	parking_occupancy	60	PASS
+A07 row counts	station_notice	21	PASS
+A07 row counts	notice_revision	47	PASS
+A07 row counts	notice_recipient	20	PASS
+A07 row counts	notification_record	20	PASS
+check_name	actual_value	result
+A08 reservation overlap conflicts	0	PASS
+check_name	actual_value	result
+A09 duplicate active space occupancy	0	PASS
+check_name	actual_value	result
+A10 duplicate active vehicle occupancy	0	PASS
+check_name	actual_value	result
+A11 duplicate active queue user	0	PASS
+check_name	actual_value	result
+A12 invalid notification state	0	PASS
+check_name	actual_value	result
+A13 invalid reservation consume state	0	PASS
+check_name	actual_value	result
+A14 invalid queue consume state	0	PASS
+check_name	nonconforming_tables	result
+A15 A table engine/collation	0	PASS
+check_name	actual_value	result
+A16 A foreign key count	34	PASS
+check_name	actual_value	result
+A17 A CHECK constraint count	40	PASS
+section
+=== B 01/02 structure overview ===
+TABLE_NAME	ENGINE	TABLE_COLLATION
+charging_gun	InnoDB	utf8mb4_0900_ai_ci
+charging_order	InnoDB	utf8mb4_0900_ai_ci
+charging_pile	InnoDB	utf8mb4_0900_ai_ci
+equipment_change_request	InnoDB	utf8mb4_0900_ai_ci
+equipment_offline_task	InnoDB	utf8mb4_0900_ai_ci
+equipment_outage_plan	InnoDB	utf8mb4_0900_ai_ci
+equipment_status_log	InnoDB	utf8mb4_0900_ai_ci
+meter_reading	InnoDB	utf8mb4_0900_ai_ci
+operator	InnoDB	utf8mb4_0900_ai_ci
+order_fee_detail	InnoDB	utf8mb4_0900_ai_ci
+parking_space	InnoDB	utf8mb4_0900_ai_ci
+payment_record	InnoDB	utf8mb4_0900_ai_ci
+refund_record	InnoDB	utf8mb4_0900_ai_ci
+station	InnoDB	utf8mb4_0900_ai_ci
+tariff_band	InnoDB	utf8mb4_0900_ai_ci
+tariff_rule	InnoDB	utf8mb4_0900_ai_ci
+CONSTRAINT_NAME	COLUMN_NAME	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
+charging_order_ibfk_1	gun_id	charging_gun	gun_id
+fk_b_order_user	user_id	user	user_id
+fk_b_order_vehicle	vehicle_id	vehicle	vehicle_id
+Table	Create Table
+charging_order	CREATE TABLE `charging_order` (\n  `order_id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `gun_id` bigint unsigned NOT NULL,\n  `user_id` bigint unsigned NOT NULL,\n  `vehicle_id` bigint unsigned NOT NULL,\n  `channel` enum('DIRECT','RESERVATION','QUEUE') NOT NULL DEFAULT 'DIRECT',\n  `admission_id` bigint unsigned DEFAULT NULL,\n  `starts_at` datetime NOT NULL,\n  `ends_at` datetime DEFAULT NULL,\n  `start_soc` tinyint unsigned DEFAULT NULL,\n  `end_soc` tinyint unsigned DEFAULT NULL,\n  `state` enum('ACTIVE','REVIEW','BILLED') NOT NULL DEFAULT 'ACTIVE',\n  `active_gun_id` bigint unsigned GENERATED ALWAYS AS (if((`state` = _utf8mb4'ACTIVE'),`gun_id`,NULL)) STORED,\n  `total_kwh` decimal(12,3) DEFAULT NULL,\n  `gross_amount` decimal(12,2) DEFAULT NULL,\n  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',\n  `confirmed_at` datetime DEFAULT NULL,\n  `review_reason` varchar(255) DEFAULT NULL,\n  `review_note` varchar(255) DEFAULT NULL,\n  PRIMARY KEY (`order_id`),\n  UNIQUE KEY `uq_one_active_order_per_gun` (`active_gun_id`),\n  UNIQUE KEY `uq_admission_use` (`channel`,`admission_id`),\n  KEY `ix_order_gun_time` (`gun_id`,`starts_at`),\n  KEY `ix_order_user_time` (`user_id`,`starts_at`,`order_id`),\n  KEY `fk_b_order_vehicle` (`vehicle_id`),\n  CONSTRAINT `charging_order_ibfk_1` FOREIGN KEY (`gun_id`) REFERENCES `charging_gun` (`gun_id`),\n  CONSTRAINT `fk_b_order_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`user_id`),\n  CONSTRAINT `fk_b_order_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle` (`vehicle_id`),\n  CONSTRAINT `charging_order_chk_1` CHECK (((`channel` = _utf8mb4'DIRECT') = (`admission_id` is null))),\n  CONSTRAINT `charging_order_chk_2` CHECK (((`start_soc` <= 100) and (`end_soc` <= 100))),\n  CONSTRAINT `charging_order_chk_3` CHECK ((`ends_at` >= `starts_at`)),\n  CONSTRAINT `charging_order_chk_4` CHECK (((`confirmed_at` is null) or ((`state` = _utf8mb4'BILLED') and (`confirmed_at` >= `ends_at`)))),\n  CONSTRAINT `charging_order_chk_5` CHECK (((`total_kwh` >= 0) and (`gross_amount` >= 0) and (`discount_amount` >= 0) and (`discount_amount` <= `gross_amount`))),\n  CONSTRAINT `charging_order_chk_6` CHECK ((((`state` = _utf8mb4'ACTIVE') and (`ends_at` is null) and (`gross_amount` is null)) or ((`state` = _utf8mb4'REVIEW') and (`ends_at` is not null) and (`review_reason` is not null) and (`gross_amount` is null)) or ((`state` = _utf8mb4'BILLED') and (`ends_at` is not null) and (`gross_amount` is not null) and (`total_kwh` is not null))))\n) ENGINE=InnoDB AUTO_INCREMENT=8137 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='充电订单。用户车辆外键接D；A资格映射待接入'
+Table	Create Table
+charging_gun	CREATE TABLE `charging_gun` (\n  `gun_id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `pile_id` bigint unsigned NOT NULL,\n  `station_id` bigint unsigned NOT NULL,\n  `parking_space_id` bigint unsigned NOT NULL,\n  `gun_no` smallint unsigned NOT NULL,\n  `gun_type` enum('DC','AC') NOT NULL,\n  `interface_type` varchar(40) NOT NULL,\n  `max_kw` decimal(8,2) NOT NULL,\n  `status` enum('READY','FAULT','DISABLED','OFFLINE') NOT NULL DEFAULT 'READY',\n  PRIMARY KEY (`gun_id`),\n  UNIQUE KEY `parking_space_id` (`parking_space_id`),\n  UNIQUE KEY `uq_pile_gun_no` (`pile_id`,`gun_no`),\n  UNIQUE KEY `uq_gun_station` (`gun_id`,`station_id`),\n  KEY `pile_id` (`pile_id`,`station_id`),\n  KEY `parking_space_id_2` (`parking_space_id`,`station_id`),\n  CONSTRAINT `charging_gun_ibfk_1` FOREIGN KEY (`pile_id`, `station_id`) REFERENCES `charging_pile` (`pile_id`, `station_id`),\n  CONSTRAINT `charging_gun_ibfk_2` FOREIGN KEY (`parking_space_id`, `station_id`) REFERENCES `parking_space` (`parking_space_id`, `station_id`),\n  CONSTRAINT `charging_gun_chk_1` CHECK (((`max_kw` > 0) and (`gun_no` > 0)))\n) ENGINE=InnoDB AUTO_INCREMENT=7200021 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='充电枪。站点列用于复合外键保证车位和桩同站'
+Table	Create Table
+equipment_offline_task	CREATE TABLE `equipment_offline_task` (\n  `task_id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `pile_id` bigint unsigned NOT NULL,\n  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `closed_at` datetime DEFAULT NULL,\n  `active_pile_id` bigint unsigned GENERATED ALWAYS AS (if((`closed_at` is null),`pile_id`,NULL)) STORED,\n  PRIMARY KEY (`task_id`),\n  UNIQUE KEY `uq_offline_open` (`active_pile_id`),\n  KEY `pile_id` (`pile_id`),\n  CONSTRAINT `equipment_offline_task_ibfk_1` FOREIGN KEY (`pile_id`) REFERENCES `charging_pile` (`pile_id`)\n) ENGINE=InnoDB AUTO_INCREMENT=7200026 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='给C的设备离线待办。每桩最多一项未关闭'
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+b_gun_power_insert	INSERT	charging_gun	BEGIN\n DECLARE capacity DECIMAL(8,2);\n SELECT rated_kw INTO capacity FROM charging_pile WHERE pile_id=NEW.pile_id FOR UPDATE;\n IF NEW.max_kw > capacity THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Gun exceeds pile rated power'; END IF;\nEND	BEFORE	2026-11-21 21:52:30.57	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_gun_status_insert	INSERT	charging_gun	INSERT INTO equipment_status_log(gun_id,new_status) VALUES(NEW.gun_id,NEW.status)	AFTER	2026-11-21 21:52:30.59	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_gun_power_update	UPDATE	charging_gun	BEGIN\n DECLARE capacity DECIMAL(8,2);\n SELECT rated_kw INTO capacity FROM charging_pile WHERE pile_id=NEW.pile_id FOR UPDATE;\n IF NEW.max_kw > capacity THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Gun exceeds pile rated power'; END IF;\nEND	BEFORE	2026-11-21 21:52:30.57	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_gun_status_update	UPDATE	charging_gun	BEGIN\n IF OLD.status<>NEW.status THEN\n  INSERT INTO equipment_status_log(gun_id,old_status,new_status) VALUES(OLD.gun_id,OLD.status,NEW.status);\n END IF;\nEND	AFTER	2026-11-21 21:52:30.59	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_billed_order_guard	UPDATE	charging_order	BEGIN\n    IF OLD.state='BILLED' AND (\n        NEW.state<>OLD.state OR NEW.gun_id<>OLD.gun_id\n        OR NEW.user_id<>OLD.user_id OR NEW.vehicle_id<>OLD.vehicle_id\n        OR NEW.starts_at<>OLD.starts_at OR NOT(NEW.ends_at <=> OLD.ends_at)\n        OR NOT(NEW.total_kwh <=> OLD.total_kwh)\n        OR NOT(NEW.gross_amount <=> OLD.gross_amount)\n        OR NEW.channel<>OLD.channel OR NOT(NEW.admission_id <=> OLD.admission_id)\n    ) THEN\n        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='B_BILLED_FACTS_IMMUTABLE';\n    END IF;\n    IF OLD.state='BILLED' AND (\n        NEW.discount_amount<>OLD.discount_amount\n        OR NOT(NEW.confirmed_at <=> OLD.confirmed_at)\n    ) AND EXISTS(SELECT 1 FROM payment_record\n                 WHERE order_id=OLD.order_id AND status='SUCCESS') THEN\n        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='B_PAID_BILL_IMMUTABLE';\n    END IF;\nEND	BEFORE	2026-11-21 21:52:30.62	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_pile_status_insert	INSERT	charging_pile	INSERT INTO equipment_status_log(pile_id,new_status) VALUES(NEW.pile_id,NEW.status)	AFTER	2026-11-21 21:52:30.58	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_pile_power_update	UPDATE	charging_pile	BEGIN\n DECLARE largest DECIMAL(8,2);\n IF NEW.rated_kw<OLD.rated_kw THEN\n  SELECT MAX(max_kw) INTO largest FROM charging_gun WHERE pile_id=OLD.pile_id FOR UPDATE;\n  IF NEW.rated_kw < largest THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Existing gun exceeds new pile power'; END IF;\n END IF;\nEND	BEFORE	2026-11-21 21:52:30.58	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_pile_status_update	UPDATE	charging_pile	BEGIN\n IF OLD.status<>NEW.status THEN\n  INSERT INTO equipment_status_log(pile_id,old_status,new_status) VALUES(OLD.pile_id,OLD.status,NEW.status);\n END IF;\nEND	AFTER	2026-11-21 21:52:30.58	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_fee_snapshot_no_update	UPDATE	order_fee_detail	BEGIN\n    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='B_FEE_SNAPSHOT_IMMUTABLE';\nEND	BEFORE	2026-11-21 21:52:30.61	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+b_fee_snapshot_no_delete	DELETE	order_fee_detail	BEGIN\n    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='B_FEE_SNAPSHOT_IMMUTABLE';\nEND	BEFORE	2026-11-21 21:52:30.62	ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION	root@localhost	utf8mb4	utf8mb4_0900_ai_ci	utf8mb4_0900_ai_ci
+TABLE_NAME	SECURITY_TYPE
+v_b_active_order	INVOKER
+v_b_equipment_history	INVOKER
+v_b_fee_segment	INVOKER
+v_b_gun_availability	INVOKER
+v_b_order_funds	INVOKER
+v_b_pile_warranty	INVOKER
+order_id	user_id	station_id	operator_id	state	starts_at	ends_at	confirmed_at	total_kwh	gross_amount	discount_amount	payable	paid	refunded	net_received	review_reason
+8001	10012	9103	9003	ACTIVE	2026-11-18 08:05:00	NULL	NULL	NULL	NULL	0.00	NULL	0.00	0.00	0.00	NULL
+8002	10013	9103	9003	ACTIVE	2026-11-18 09:05:00	NULL	NULL	NULL	NULL	0.00	NULL	0.00	0.00	0.00	NULL
+8003	10014	9103	9003	ACTIVE	2026-11-18 10:05:00	NULL	NULL	NULL	NULL	0.00	NULL	0.00	0.00	0.00	NULL
+8004	10015	9103	9003	BILLED	2026-11-18 11:05:00	2026-11-18 12:05:00	NULL	32.500	65.00	0.00	65.00	0.00	0.00	0.00	NULL
+8005	10016	9104	9004	BILLED	2026-11-18 12:05:00	2026-11-18 13:05:00	NULL	28.000	56.00	0.00	56.00	0.00	0.00	0.00	NULL
+8006	10006	9102	9002	BILLED	2026-11-20 08:18:30	2026-11-20 09:18:30	NULL	25.000	50.00	0.00	50.00	0.00	0.00	0.00	NULL
+8007	10017	9104	9004	BILLED	2026-11-20 08:19:30	2026-11-20 09:19:30	NULL	22.000	44.00	0.00	44.00	0.00	0.00	0.00	NULL
+8008	10018	9104	9004	BILLED	2026-11-20 08:20:30	2026-11-20 09:20:30	NULL	30.000	60.00	0.00	60.00	0.00	0.00	0.00	NULL
+8009	10019	9104	9004	BILLED	2026-11-20 08:21:30	2026-11-20 09:21:30	NULL	18.000	36.00	0.00	36.00	0.00	0.00	0.00	NULL
+8010	10020	9104	9004	ACTIVE	2026-11-20 08:22:30	NULL	NULL	NULL	NULL	0.00	NULL	0.00	0.00	0.00	NULL
+section
+=== D 04 core structure ===
+check_item	actual_value	expected_value	result
+core_table_count	9	9	PASS
+check_item	actual_value	expected_value	result
+invalid_engine_or_collation	0	0	PASS
+CONSTRAINT_TYPE	constraint_count
+CHECK	28
+FOREIGN KEY	10
+PRIMARY KEY	9
+UNIQUE	7
+check_item	actual_value	expected_value	result
+primary_key_count	9	9	PASS
+check_item	actual_value	expected_value	result
+foreign_key_count	10	10	PASS
+check_item	actual_value	expected_value	result
+unique_constraint_count	7	7	PASS
+check_item	actual_value	expected_value	result
+check_constraint_count	28	28	PASS
+check_item	actual_value	expected_value	result
+invalid_id_column_type	0	0	PASS
+TABLE_NAME	COLUMN_NAME	COLUMN_TYPE
+enterprise_customer	enterprise_id	bigint unsigned
+fleet	fleet_id	bigint unsigned
+fleet	enterprise_id	bigint unsigned
+fleet_quota_record	quota_record_id	bigint unsigned
+fleet_quota_record	enterprise_id	bigint unsigned
+fleet_quota_record	fleet_id	bigint unsigned
+fleet_quota_record	vehicle_id	bigint unsigned
+fleet_vehicle	fleet_vehicle_id	bigint unsigned
+fleet_vehicle	fleet_id	bigint unsigned
+fleet_vehicle	vehicle_id	bigint unsigned
+membership_level	level_id	bigint unsigned
+membership_record	membership_record_id	bigint unsigned
+membership_record	user_id	bigint unsigned
+membership_record	level_id	bigint unsigned
+promotion	promotion_id	bigint unsigned
+user	user_id	bigint unsigned
+user	level_id	bigint unsigned
+vehicle	vehicle_id	bigint unsigned
+vehicle	user_id	bigint unsigned
+section
+=== D 04 cross-module structure ===
+check_item	actual_value	expected_value	result
+I01 integration_table_count	3	3	PASS
+check_item	actual_value	expected_value	result
+I02 invalid_engine_or_collation	0	0	PASS
+constraint_type	actual_count	expected_count	result
+PRIMARY KEY	3	3	PASS
+FOREIGN KEY	7	7	PASS
+UNIQUE	4	4	PASS
+CHECK	5	5	PASS
+check_item	actual_value	expected_value	result
+I04 b_cross_module_fk_count	3	3	PASS
+check_item	actual_value	expected_value	result
+I05 invalid_id_column_type	0	0	PASS
+check_item	actual_value	expected_value	result
+I06 order_coupon_uniqueness	2	2	PASS
+table_name	row_count
+coupon	20
+coupon_redemption	20
+promotion_station	20
+section
+=== D 04 views and procedure ===
+check_item	actual_value	expected_value	result
+membership_view_count	3	3	PASS
+check_item	actual_value	expected_value	result
+sensitive_column_exposure	0	0	PASS
+view_name	actual_count	expected_count	result
+v_user_membership_profile	20	20	PASS
+v_fleet_active_vehicle	20	20	PASS
+v_active_global_promotion	20	20	PASS
+user_id	real_name	real_name_status	user_status	registered_at	level_id	level_code	level_name	balance	active_vehicle_count
+10001	测试用户01	VERIFIED	ACTIVE	2026-11-02 09:00:00	1	TEST_LEVEL_01	测试等级01	10.00	1
+10002	测试用户02	VERIFIED	ACTIVE	2026-11-03 09:00:00	2	TEST_LEVEL_02	测试等级02	20.00	1
+10003	测试用户03	VERIFIED	ACTIVE	2026-11-04 09:00:00	3	TEST_LEVEL_03	测试等级03	30.00	1
+10004	测试用户04	VERIFIED	ACTIVE	2026-11-05 09:00:00	4	TEST_LEVEL_04	测试等级04	40.00	1
+10005	测试用户05	PENDING	ACTIVE	2026-11-06 09:00:00	5	TEST_LEVEL_05	测试等级05	50.00	1
+enterprise_id	enterprise_name	fleet_id	fleet_name	fleet_vehicle_id	joined_at	vehicle_id	model	vehicle_status	user_id	vehicle_owner
+50001	测试企业01	60001	测试车队01	70001	2026-11-02 08:00:00	20001	测试车型01	ACTIVE	10001	测试用户01
+50002	测试企业02	60002	测试车队02	70002	2026-11-03 08:00:00	20002	测试车型02	ACTIVE	10002	测试用户02
+50003	测试企业03	60003	测试车队03	70003	2026-11-04 08:00:00	20003	测试车型03	ACTIVE	10003	测试用户03
+50004	测试企业04	60004	测试车队04	70004	2026-11-05 08:00:00	20004	测试车型04	ACTIVE	10004	测试用户04
+50005	测试企业05	60005	测试车队05	70005	2026-11-06 08:00:00	20005	测试车型05	ACTIVE	10005	测试用户05
+promotion_id	promotion_name	description	discount_type	discount_value	minimum_spend	max_discount_amount	total_quantity	per_user_limit	valid_from	valid_to
+40001	测试优惠活动01	课程设计测试活动01	FIXED	6.0000	21.00	NULL	101	2	2026-11-01 00:00:00	2026-12-31 23:59:59
+40002	测试优惠活动02	课程设计测试活动02	PERCENTAGE	0.8020	22.00	32.00	102	3	2026-11-01 00:00:00	2026-12-31 23:59:59
+40003	测试优惠活动03	课程设计测试活动03	FIXED	8.0000	23.00	NULL	NULL	1	2026-11-01 00:00:00	2026-12-31 23:59:59
+40004	测试优惠活动04	课程设计测试活动04	PERCENTAGE	0.8040	24.00	34.00	104	2	2026-11-01 00:00:00	2026-12-31 23:59:59
+40005	测试优惠活动05	课程设计测试活动05	FIXED	10.0000	25.00	NULL	105	3	2026-11-01 00:00:00	2026-12-31 23:59:59
+check_item	actual_value	expected_value	result
+promotion_quote_procedure	1	1	PASS
+promotion_id	promotion_name	discount_type	eligible	order_amount	discount_amount	payable_amount	query_time	reason
+40019	测试优惠活动19	FIXED	1	100.00	24.00	76.00	2026-11-19 12:00:00	NULL
+promotion_id	promotion_name	discount_type	eligible	order_amount	discount_amount	payable_amount	query_time	reason
+40002	测试优惠活动02	PERCENTAGE	1	100.00	19.80	80.20	2026-11-19 12:00:00	NULL
+promotion_id	promotion_name	discount_type	eligible	order_amount	discount_amount	payable_amount	query_time	reason
+40001	测试优惠活动01	FIXED	0	10.00	0.00	10.00	2026-11-19 12:00:00	未达到最低消费门槛
+check_item	user_count	vehicle_count	membership_record_count	promotion_count	enterprise_count	fleet_count	fleet_vehicle_count	quota_record_count
+core_row_counts_after_procedure	40	40	20	21	20	20	20	20
+section
+=== D 05 settlement structure ===
+check_item	actual_value	expected_value	result
+S01 settlement_table_count	5	5	PASS
+check_item	actual_value	expected_value	result
+S02 invalid_engine_or_collation	0	0	PASS
+constraint_type	actual_count	expected_count	result
+PRIMARY KEY	5	5	PASS
+FOREIGN KEY	13	13	PASS
+UNIQUE	7	7	PASS
+CHECK	20	20	PASS
+check_item	actual_value	expected_value	result
+S04 b_cross_module_fk_count	6	6	PASS
+check_item	actual_value	expected_value	result
+S05 internal_fk_count	7	7	PASS
+check_item	actual_value	expected_value	result
+S06 invalid_id_column_type	0	0	PASS
+check_item	actual_value	expected_value	result
+S07 named_unique_constraint_count	7	7	PASS
+check_item	actual_value	expected_value	result
+S08 stored_generated_column_count	2	2	PASS
+table_name	actual_count	expected_count	result
+invoice_record	12	12	PASS
+reconciliation_confirmation	8	8	PASS
+reconciliation_difference	15	15	PASS
+settlement_detail	22	22	PASS
+settlement_statement	26	26	PASS
+check_item	actual_value	expected_value	result
+S10 invalid_fk_rule_count	0	0	PASS
+table_name	row_count
+invoice_record	0
+reconciliation_confirmation	0
+reconciliation_difference	0
+settlement_detail	0
+settlement_statement	0
+section
+=== D 05 settlement data readiness ===
+mysql_version	database_name	session_time_zone
+8.0.46	charging_platform	+08:00
+table_name	row_count
+invoice_record	0
+reconciliation_confirmation	0
+reconciliation_difference	0
+settlement_detail	0
+settlement_statement	0
+operator_count	station_count	order_count	billed_order_count	fee_segment_count	success_payment_count	refund_count
+24	24	50	46	80	80	20
+check_item	actual_value	recommended_value	result
+DP03 eligible_settlement_order_count	40	20	PASS
+operator_id	station_id	eligible_order_count	earliest_payment_at	latest_payment_at
+7200001	7200001	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200002	7200002	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200003	7200003	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200004	7200004	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200005	7200005	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200006	7200006	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200007	7200007	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200008	7200008	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200009	7200009	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200010	7200010	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200011	7200011	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200012	7200012	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200013	7200013	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200014	7200014	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200015	7200015	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200016	7200016	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200017	7200017	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200018	7200018	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200019	7200019	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+7200020	7200020	2	2026-11-10 08:30:00	2026-11-11 08:30:00
+order_id	operator_id	station_id	total_kwh	gross_amount	discount_amount	order_payable	paid_amount	refund_count	refunded_amount	segment_count	electricity_fee	service_fee	minimum_fee_adjustment	first_payment_at	last_payment_at
+8011	7200001	7200001	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8013	7200002	7200002	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8015	7200003	7200003	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8017	7200004	7200004	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8019	7200005	7200005	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8021	7200006	7200006	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8023	7200007	7200007	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8025	7200008	7200008	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8027	7200009	7200009	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8029	7200010	7200010	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8031	7200011	7200011	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8033	7200012	7200012	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8035	7200013	7200013	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8037	7200014	7200014	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8039	7200015	7200015	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8041	7200016	7200016	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8043	7200017	7200017	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8045	7200018	7200018	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8047	7200019	7200019	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8049	7200020	7200020	16.000	12.60	2.00	10.60	10.60	1	3.00	2	9.40	3.20	0.00	2026-11-10 08:30:00	2026-11-10 08:30:00
+8012	7200001	7200001	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8014	7200002	7200002	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8016	7200003	7200003	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8018	7200004	7200004	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8020	7200005	7200005	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8022	7200006	7200006	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8024	7200007	7200007	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8026	7200008	7200008	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8028	7200009	7200009	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+8030	7200010	7200010	16.000	12.60	0.00	12.60	12.60	0	0.00	2	9.40	3.20	0.00	2026-11-11 08:30:00	2026-11-11 08:30:00
+check_item	actual_value	recommended_value	result
+DP06 available_refund_count	20	1	PASS
+section
+=== C 03/07 structure and integrity ===
+object_type	expected_count	actual_count	result
+C_TABLES	8	8	PASS
+C_VIEWS	6	6	PASS
+C_PROCEDURES	12	12	PASS
+C_TRIGGERS	8	8	PASS
+TABLE_NAME	estimated_rows
+alarm	22
+device_telemetry	22
+inventory	2
+inventory_transaction	5
+maintenance_work_order	25
+spare_part	2
+warehouse	2
+work_order_part	2
+check_name	failure_count	result
+inventory_available_not_negative	0	PASS
+check_name	failure_count	result
+work_order_parts_reconciled_when_closed	0	PASS
+check_name	failure_count	result
+inventory_quantity_matches_ledger	0	PASS
+check_name	failure_count	result
+telemetry_and_alarm_reference_existing_devices	0	PASS
+transaction_id	transaction_no	warehouse_id	spare_part_id	transaction_type	quantity_change	before_quantity	after_quantity	occurred_at
+43	RACE-99fc0cd1e06c406ab012e6860be42e19-RETURN	31	33	RETURN	1	0	1	2026-11-21 22:06:16.524546
+42	RACE-99fc0cd1e06c406ab012e6860be42e19-OUT1	31	33	ISSUE	-1	1	0	2026-11-21 22:06:16.502804
+41	RACE-99fc0cd1e06c406ab012e6860be42e19-IN	31	33	RECEIPT	1	0	1	2026-11-21 22:06:16.483406
+36	RACE-918ff52cf22a4c7890ac08256da153e9-RETURN	28	29	RETURN	1	0	1	2026-11-21 22:04:39.292488
+35	RACE-918ff52cf22a4c7890ac08256da153e9-OUT1	28	29	ISSUE	-1	1	0	2026-11-21 22:04:39.260085
+34	RACE-918ff52cf22a4c7890ac08256da153e9-IN	28	29	RECEIPT	1	0	1	2026-11-21 22:04:39.218705
+29	RACE-1f46986cbcf94b6a88900b9f1a92ef0c-RETURN	25	25	RETURN	1	0	1	2026-11-21 21:58:09.989830
+28	RACE-1f46986cbcf94b6a88900b9f1a92ef0c-OUT0	25	25	ISSUE	-1	1	0	2026-11-21 21:58:09.956387
+27	RACE-1f46986cbcf94b6a88900b9f1a92ef0c-IN	25	25	RECEIPT	1	0	1	2026-11-21 21:58:09.930729
+25	RECOVER-QA-23	23	23	RETURN	1	0	1	2026-11-21 21:58:08.499334
+24	RACE-33d61522320f4b0fb62161cfde4df703-OUT0	23	23	ISSUE	-1	1	0	2026-11-21 21:54:30.836409
+23	RACE-33d61522320f4b0fb62161cfde4df703-IN	23	23	RECEIPT	1	0	1	2026-11-21 21:54:30.802295
+20	C-SEED-TXN-0020	20	20	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+19	C-SEED-TXN-0019	19	19	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+18	C-SEED-TXN-0018	18	18	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+17	C-SEED-TXN-0017	17	17	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+16	C-SEED-TXN-0016	16	16	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+15	C-SEED-TXN-0015	15	15	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+14	C-SEED-TXN-0014	14	14	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+13	C-SEED-TXN-0013	13	13	RECEIPT	20	0	20	2026-11-21 21:52:32.625720
+section
+=== summary ===
+item	actual_value	expected_value	result
+A tables	10	10	PASS
+A views	8	8	PASS
+A procedures	14	14	PASS
+A triggers	13	13	PASS
+D settlement tables	5	5	PASS

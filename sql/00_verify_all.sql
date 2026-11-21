@@ -38,6 +38,9 @@ SOURCE sql/D/05_settlement_verify.sql;
 SELECT '=== D 05 settlement data readiness ===' AS section;
 SOURCE sql/D/05_settlement_seed_preflight.sql;
 
+SELECT '=== C 03/07 structure and integrity ===' AS section;
+SOURCE sql/C/07_verify.sql;
+
 SELECT '=== summary ===' AS section;
 SELECT 'A tables' AS item, COUNT(*) AS actual_value, 10 AS expected_value,
        IF(COUNT(*) = 10, 'PASS', 'FAIL') AS result

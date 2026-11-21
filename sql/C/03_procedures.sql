@@ -1,5 +1,5 @@
--- Every procedure below owns its transaction and should be called standalone.
--- Do not wrap a CALL in an outer transaction.
+-- 所有C过程参与调用方事务，不自行提交。Python使用公共transaction(connection)。
+-- MySQL手工调用先START TRANSACTION，成功后COMMIT，异常ROLLBACK。
 USE charging_platform;
 SET SESSION time_zone = '+08:00';
 DELIMITER $$
@@ -26,11 +26,8 @@ BEGIN
     DECLARE v_gun_status VARCHAR(20);
     DECLARE v_existing_alarm_id BIGINT UNSIGNED DEFAULT NULL;
     DECLARE v_has_alarm BOOLEAN DEFAULT FALSE;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
+    DECLARE v_latest_time DATETIME(6);
+    DECLARE v_heartbeat DATETIME(6);
 
     IF p_pile_id IS NULL OR p_pile_id = 0 OR p_collect_time IS NULL
        OR p_offline_threshold_sec IS NULL THEN
@@ -39,7 +36,6 @@ BEGIN
 
     SET p_telemetry_id = NULL;
     SET p_alarm_id = NULL;
-    START TRANSACTION;
 
     SELECT status INTO v_pile_status
     FROM charging_pile
@@ -53,6 +49,11 @@ BEGIN
         FOR UPDATE;
     END IF;
 
+    IF v_pile_status IS NULL OR (p_gun_id IS NOT NULL AND v_gun_status IS NULL) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='C_DEVICE_NOT_FOUND';
+    END IF;
+    SELECT MAX(collect_time) INTO v_latest_time FROM device_telemetry
+    WHERE pile_id=p_pile_id AND (gun_id <=> p_gun_id) FOR UPDATE;
     INSERT INTO device_telemetry (
         pile_id, gun_id, collect_time, voltage, current, power, module_temp,
         offline_duration_sec, fault_code, quality_flag
@@ -62,6 +63,12 @@ BEGIN
         p_quality_flag
     );
     SET p_telemetry_id = LAST_INSERT_ID();
+    -- 旧报文只留遥测事实，避免覆盖新状态或重新触发已修复告警。
+    IF v_latest_time IS NULL OR p_collect_time >= v_latest_time THEN
+    SET v_heartbeat=TIMESTAMPADD(SECOND,-p_offline_duration_sec,p_collect_time);
+    UPDATE charging_pile SET last_heartbeat_at=v_heartbeat
+    WHERE pile_id=p_pile_id AND (last_heartbeat_at IS NULL OR last_heartbeat_at<v_heartbeat);
+
 
     IF p_fault_code IS NOT NULL AND p_fault_code <> '' THEN
         SET v_existing_alarm_id = NULL;
@@ -109,7 +116,7 @@ BEGIN
             UPDATE charging_pile SET status = 'FAULT' WHERE pile_id = p_pile_id;
         ELSE
             UPDATE charging_gun SET status = 'FAULT'
-            WHERE gun_id = p_gun_id AND pile_id = p_pile_id;
+            WHERE gun_id = p_gun_id AND pile_id = p_pile_id AND status <> 'DISABLED';
         END IF;
     END IF;
 
@@ -127,8 +134,16 @@ BEGIN
         SET status = 'OFFLINE'
         WHERE pile_id = p_pile_id AND status = 'READY';
     END IF;
-
-    COMMIT;
+    IF p_offline_duration_sec=0 AND (p_fault_code IS NULL OR p_fault_code='') THEN
+        UPDATE charging_pile SET status='READY'
+        WHERE pile_id=p_pile_id AND status='OFFLINE' AND commissioned_on IS NOT NULL
+          AND NOT EXISTS(SELECT 1 FROM alarm WHERE pile_id=p_pile_id
+              AND alarm_status IN ('OPEN','ACKNOWLEDGED'));
+        UPDATE equipment_offline_task SET closed_at=CURRENT_TIMESTAMP(6)
+        WHERE pile_id=p_pile_id AND closed_at IS NULL AND created_at<=p_collect_time
+          AND EXISTS(SELECT 1 FROM charging_pile WHERE pile_id=p_pile_id AND status='READY');
+    END IF;
+    END IF;
 END$$
 
 CREATE PROCEDURE sp_c_dispatch_work_order(
@@ -142,11 +157,6 @@ SQL SECURITY INVOKER
 MODIFIES SQL DATA
 BEGIN
     DECLARE v_alarm_status VARCHAR(20);
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
 
     IF p_alarm_id IS NULL OR p_alarm_id = 0
        OR p_work_order_no IS NULL OR TRIM(p_work_order_no) = ''
@@ -154,7 +164,6 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_WORK_ORDER_INPUT';
     END IF;
 
-    START TRANSACTION;
     SELECT alarm_status INTO v_alarm_status
     FROM alarm WHERE alarm_id = p_alarm_id FOR UPDATE;
 
@@ -173,7 +182,6 @@ BEGIN
         UPDATE alarm SET alarm_status = 'ACKNOWLEDGED'
         WHERE alarm_id = p_alarm_id;
     END IF;
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_advance_work_order(
@@ -186,18 +194,12 @@ SQL SECURITY INVOKER
 MODIFIES SQL DATA
 BEGIN
     DECLARE v_status VARCHAR(20);
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
 
     IF p_work_order_id IS NULL OR p_work_order_id = 0
        OR p_action NOT IN ('ACCEPT', 'ARRIVE', 'REPAIR') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_WORK_ORDER_ACTION';
     END IF;
 
-    START TRANSACTION;
     SELECT work_order_status INTO v_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id
@@ -231,7 +233,6 @@ BEGIN
     ELSE
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_WORK_ORDER_TRANSITION';
     END IF;
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_verify_work_order(
@@ -248,13 +249,7 @@ BEGIN
     DECLARE v_status VARCHAR(20);
     DECLARE v_open_parts BIGINT UNSIGNED DEFAULT 0;
     DECLARE v_other_alarms BIGINT UNSIGNED DEFAULT 0;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
 
-    START TRANSACTION;
     SELECT wo.alarm_id, wo.work_order_status, a.pile_id, a.gun_id
       INTO v_alarm_id, v_status, v_pile_id, v_gun_id
     FROM maintenance_work_order AS wo
@@ -310,7 +305,7 @@ BEGIN
                 ELSE
                     UPDATE charging_pile
                     SET status = 'READY'
-                    WHERE pile_id = v_pile_id AND status = 'FAULT'
+                    WHERE pile_id = v_pile_id AND status = 'FAULT' AND commissioned_on IS NOT NULL
                       AND NOT EXISTS (
                           SELECT 1 FROM alarm
                           WHERE pile_id = v_pile_id
@@ -321,6 +316,7 @@ BEGIN
                 UPDATE equipment_offline_task
                 SET closed_at = CURRENT_TIMESTAMP(6)
                 WHERE pile_id = v_pile_id AND closed_at IS NULL
+                  AND EXISTS(SELECT 1 FROM charging_pile WHERE pile_id=v_pile_id AND status='READY')
                   AND NOT EXISTS (
                       SELECT 1 FROM alarm
                       WHERE pile_id = v_pile_id
@@ -342,7 +338,6 @@ BEGIN
         WHERE alarm_id = v_alarm_id
           AND alarm_status = 'ACKNOWLEDGED';
     END IF;
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_cancel_work_order(
@@ -353,16 +348,10 @@ SQL SECURITY INVOKER
 MODIFIES SQL DATA
 BEGIN
     DECLARE v_status VARCHAR(20);
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
 
     IF p_reason IS NULL OR TRIM(p_reason) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_CANCEL_REASON_REQUIRED';
     END IF;
-    START TRANSACTION;
     SELECT work_order_status INTO v_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id
@@ -373,7 +362,6 @@ BEGIN
     UPDATE maintenance_work_order
     SET work_order_status = 'CANCELLED', verify_remark = p_reason
     WHERE work_order_id = p_work_order_id;
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_plan_work_order_part(
@@ -388,15 +376,9 @@ SQL SECURITY INVOKER
 MODIFIES SQL DATA
 BEGIN
     DECLARE v_status VARCHAR(20);
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_planned_qty IS NULL OR p_planned_qty = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_PLANNED_QUANTITY_REQUIRED';
     END IF;
-    START TRANSACTION;
     SELECT work_order_status INTO v_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id FOR UPDATE;
@@ -409,7 +391,6 @@ BEGIN
         p_work_order_id, p_spare_part_id, p_warehouse_id, p_planned_qty, p_remark
     );
     SET p_work_order_part_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_receive_stock(
@@ -427,16 +408,10 @@ BEGIN
     DECLARE v_before INT UNSIGNED;
     DECLARE v_after INT UNSIGNED;
     DECLARE v_version INT UNSIGNED;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_quantity IS NULL OR p_quantity = 0
        OR p_transaction_no IS NULL OR TRIM(p_transaction_no) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_RECEIPT';
     END IF;
-    START TRANSACTION;
     IF NOT EXISTS (
         SELECT 1 FROM warehouse WHERE warehouse_id = p_warehouse_id
           AND warehouse_status = 'ACTIVE'
@@ -469,7 +444,6 @@ BEGIN
         p_quantity, v_before, v_after, p_operator_id
     );
     SET p_transaction_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_issue_work_order_part(
@@ -493,16 +467,10 @@ BEGIN
     DECLARE v_issued INT UNSIGNED;
     DECLARE v_planned INT UNSIGNED;
     DECLARE v_work_order_part_id BIGINT UNSIGNED;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_quantity IS NULL OR p_quantity = 0
        OR p_transaction_no IS NULL OR TRIM(p_transaction_no) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_ISSUE';
     END IF;
-    START TRANSACTION;
     SELECT work_order_status INTO v_work_order_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id FOR UPDATE;
@@ -551,7 +519,6 @@ BEGIN
         'ISSUE', -CAST(p_quantity AS SIGNED), v_before, v_after, p_operator_id
     );
     SET p_transaction_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_return_work_order_part(
@@ -574,16 +541,10 @@ BEGIN
     DECLARE v_issued INT UNSIGNED;
     DECLARE v_installed INT UNSIGNED;
     DECLARE v_returned INT UNSIGNED;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_quantity IS NULL OR p_quantity = 0
        OR p_transaction_no IS NULL OR TRIM(p_transaction_no) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_RETURN';
     END IF;
-    START TRANSACTION;
     SELECT work_order_status INTO v_work_order_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id FOR UPDATE;
@@ -618,11 +579,11 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVENTORY_VERSION_CONFLICT';
     END IF;
     UPDATE work_order_part
-    SET returned_qty = returned_qty + p_quantity,
-        part_usage_status = CASE
+    SET part_usage_status = CASE
             WHEN installed_qty + returned_qty + p_quantity = issued_qty THEN 'COMPLETED'
             ELSE 'ISSUED'
-        END
+        END,
+        returned_qty = returned_qty + p_quantity
     WHERE work_order_id = p_work_order_id
       AND spare_part_id = p_spare_part_id
       AND warehouse_id = p_warehouse_id;
@@ -635,7 +596,6 @@ BEGIN
         'RETURN', p_quantity, v_before, v_after, p_operator_id
     );
     SET p_transaction_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_record_part_installation(
@@ -651,15 +611,9 @@ BEGIN
     DECLARE v_issued INT UNSIGNED;
     DECLARE v_returned INT UNSIGNED;
     DECLARE v_installed INT UNSIGNED;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_quantity IS NULL OR p_quantity = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_INSTALL_QUANTITY';
     END IF;
-    START TRANSACTION;
     SELECT work_order_status INTO v_order_status
     FROM maintenance_work_order
     WHERE work_order_id = p_work_order_id FOR UPDATE;
@@ -677,15 +631,14 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INSTALL_EXCEEDS_UNINSTALLED_ISSUE';
     END IF;
     UPDATE work_order_part
-    SET installed_qty = installed_qty + p_quantity,
-        part_usage_status = CASE
+    SET part_usage_status = CASE
             WHEN installed_qty + returned_qty + p_quantity = issued_qty THEN 'COMPLETED'
             ELSE 'ISSUED'
-        END
+        END,
+        installed_qty = installed_qty + p_quantity
     WHERE work_order_id = p_work_order_id
       AND spare_part_id = p_spare_part_id
       AND warehouse_id = p_warehouse_id;
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_adjust_stock(
@@ -705,16 +658,10 @@ BEGIN
     DECLARE v_locked INT UNSIGNED;
     DECLARE v_after INT UNSIGNED;
     DECLARE v_version INT UNSIGNED;
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-        RESIGNAL;
-    END;
     IF p_delta IS NULL OR p_delta = 0 OR p_reason IS NULL OR TRIM(p_reason) = ''
        OR p_transaction_no IS NULL OR TRIM(p_transaction_no) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_INVALID_STOCK_ADJUSTMENT';
     END IF;
-    START TRANSACTION;
     SELECT inventory_id, quantity, locked_quantity, version_no
       INTO v_inventory_id, v_before, v_locked, v_version
     FROM inventory
@@ -738,7 +685,6 @@ BEGIN
         p_delta, v_before, v_after, p_operator_id
     );
     SET p_transaction_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 CREATE PROCEDURE sp_c_reverse_inventory_transaction(
@@ -769,14 +715,12 @@ BEGIN
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         SET @c_inventory_reversal = NULL;
-        ROLLBACK;
         RESIGNAL;
     END;
     IF p_reversal_no IS NULL OR TRIM(p_reversal_no) = ''
        OR p_reason IS NULL OR TRIM(p_reason) = '' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'C_REVERSAL_REASON_REQUIRED';
     END IF;
-    START TRANSACTION;
     SELECT warehouse_id, spare_part_id, work_order_id, transaction_type, quantity_change
       INTO v_warehouse_id, v_spare_part_id, v_work_order_id, v_type, v_delta
     FROM inventory_transaction
@@ -873,7 +817,6 @@ BEGIN
         p_original_transaction_id
     );
     SET p_reversal_id = LAST_INSERT_ID();
-    COMMIT;
 END$$
 
 DELIMITER ;

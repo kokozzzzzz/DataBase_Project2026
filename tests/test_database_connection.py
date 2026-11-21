@@ -1,6 +1,7 @@
 """数据库连接工厂单元测试，不连接真实 MySQL。"""
 
 from unittest.mock import Mock
+from dataclasses import replace
 
 import pytest
 
@@ -56,3 +57,11 @@ def test_database_connection_rolls_back_and_closes_on_error(
 
     fake_connection.rollback.assert_called_once_with()
     fake_connection.close.assert_called_once_with()
+
+
+def test_tls_ca_is_passed_to_driver(monkeypatch):
+    connect = Mock(return_value=Mock())
+    monkeypatch.setattr('app.database.connection.pymysql.connect', connect)
+    with database_connection(replace(_test_config(), ssl_ca='D:/test/ca.pem')):
+        pass
+    assert connect.call_args.kwargs['ssl_ca'] == 'D:/test/ca.pem'

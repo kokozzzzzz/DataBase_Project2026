@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from yX.c_app import service
+from app.services import c_service as service
 
 
 def test_ingest_sample_rejects_negative_measurement(monkeypatch: pytest.MonkeyPatch) -> None:
