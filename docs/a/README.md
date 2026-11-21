@@ -141,6 +141,8 @@ A同学
 
 ### 9.1 SQL 执行顺序
 
+> 空库可直接执行仓库根目录的 `sql/00_install_all.sql`；已有 D/B、仅缺 A 时执行 `sql/A/00_install_a.sql`。下面的顺序用于理解依赖关系。`sql/A/07_verify.sql` 只读，不会创建对象；A03～A06 为 0 时先运行 `sql/A/00_preflight.sql` 定位缺项。
+
 在 MySQL 客户端中，按依赖顺序执行（`SOURCE` 路径相对仓库根目录）：
 
 ```sql

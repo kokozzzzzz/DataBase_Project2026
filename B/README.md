@@ -22,6 +22,8 @@ B 负责①场站与充电设施、②充电订单与计费。2026-11-20 更新�
 
 使用仓库公共 app/database/connection.py、config.py 和 .env 的 DB_HOST、DB_PORT、DB_USER、DB_PASSWORD、DB_NAME。会话统一+08:00，数据库名 charging_platform。现有密码自己在本机填写；服务采用公共 DB_* 配置。
 
+> 空库可直接执行仓库根目录的 `sql/00_install_all.sql`：它已按 D 核心 → B 结构/触发器/视图/保护触发器 → D 跨模块 → A 结构 → D 结算表的顺序安装。下面的 SOURCE 顺序用于理解依赖，或在已有库中单独补装 B。
+
 **已安装B第二阶段、D与A正式对象时**，在仓库根目录打开的 MySQL 客户端首次执行本次增量。
 
 ```sql

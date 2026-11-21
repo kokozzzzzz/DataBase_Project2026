@@ -2,12 +2,16 @@
 
 ## 执行顺序
 
+> 空库优先使用仓库根目录的 `sql/00_install_all.sql`；已有 D/B、仅缺 A 时使用 `sql/A/00_install_a.sql`。
+> `sql/A/07_verify.sql` 是只读验收，不会创建任何对象；A03～A06 为 0 时应先运行 `sql/A/00_preflight.sql` 定位依赖。
+
 前置：D 的 `user`、`vehicle` 已创建；B 的 `station`、`charging_gun`、`parking_space`、`equipment_outage_plan`、`charging_order` 已创建。
 
 ```sql
 USE charging_platform;
 SET SESSION time_zone = '+08:00';
 
+SOURCE sql/A/00_preflight.sql;    -- 只读：检查 D/B 依赖与 A 当前对象数
 SOURCE sql/A/01_schema.sql;       -- 10 张表、主外键、唯一、CHECK、生成列、索引
 SOURCE sql/A/02_triggers.sql;     -- 13 个触发器
 SOURCE sql/A/03_procedures.sql;   -- 14 个存储过程
@@ -16,6 +20,8 @@ SOURCE sql/A/04_views.sql;        -- 8 个视图
 SOURCE sql/A/00_local_shared_fixtures.sql; -- 仅本地联调：场站/枪/车位/停运计划夹具
 SOURCE sql/A/05_seed.sql;                  -- 每张 A 表 ≥20 行；检查末尾统计后手动 COMMIT
 ```
+
+仅补装 A 结构时，用 `SOURCE sql/A/00_install_a.sql;` 代替手工执行 01～04；它会先检查前置表和 A 表是否已存在，避免重复建表。
 
 正式联调时，用 B 的正式种子替代 `00_local_shared_fixtures.sql`；A 的 `05_seed.sql` 依赖以下公共编号：
 
@@ -26,6 +32,8 @@ SOURCE sql/A/05_seed.sql;                  -- 每张 A 表 ≥20 行；检查末
 
 | 文件 | 内容 |
 | --- | --- |
+| `00_preflight.sql` | 只读安装前置检查：D/B 依赖表、编号类型、A 当前对象数与诊断提示 |
+| `00_install_a.sql` | 仅补装 A 结构（01～04）；带前置与重复建表守卫，适合已有 D/B 的库 |
 | `00_local_shared_fixtures.sql` | 本地共享夹具：4 场站、8 桩、20 枪、20 车位、20 停运计划；不纳入正式数据 |
 | `01_schema.sql` | 10 张 A 表 DDL |
 | `02_triggers.sql` | 区间冲突兜底、预约/排队状态机与历史、核验占位、公告版本、通知状态机 |

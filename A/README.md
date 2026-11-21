@@ -13,6 +13,8 @@ A同学负责模块：**⑥ 预约、排队与到站管理** + **⑧ 场站服�
 | ⑧ 详细设计 | `docs/a/08_notice.md` | 公开公告/定向通知、状态机、版本、接收人、通知、测试 |
 | 数据字典 | `docs/a/A_06_08_data_dictionary.xlsx` | 10 表 116 字段，含类型、键、外键、NULL、唯一、默认值、CHECK、索引、示例值 |
 | 业务图 | `A/业务图/*.png` + `*.dot` | ⑥⑧ 用例图、鲁棒图、局部 E-R 图，可用 Graphviz 重新渲染 |
+| 安装检查 | `sql/A/00_preflight.sql` | 只读检查 D/B 依赖、编号类型与 A 当前对象数；定位 `07_verify` 全 0 |
+| 补装脚本 | `sql/A/00_install_a.sql` | 已有 D/B、仅缺 A 时安装 01～04；带前置与重复建表守卫 |
 | DDL | `sql/A/01_schema.sql` | 10 张表、复合外键、生成列、唯一、CHECK、索引 |
 | 触发器 | `sql/A/02_triggers.sql` | 13 个：冲突兜底、状态机、状态历史、核验占位、公告版本、通知状态机 |
 | 存储过程 | `sql/A/03_procedures.sql` | 14 个：预约/改约/取消、核验、排队/叫号、资格消费、过期批处理、公告发布/撤回 |
@@ -52,7 +54,23 @@ A同学负责模块：**⑥ 预约、排队与到站管理** + **⑧ 场站服�
 
 ### 3.1 SQL
 
-在仓库根目录登录 MySQL 后按顺序执行：
+空库优先使用仓库根目录的一键安装脚本：
+
+```sql
+SOURCE sql/00_install_all.sql;   -- D 核心 → B 结构 → D 跨模块 → A 结构 → D 结算表
+SOURCE sql/00_seed_all.sql;      -- 可选：D/A 本地种子
+SOURCE sql/A/07_verify.sql;
+```
+
+已有 D/B、仅缺 A 时（例如 `07_verify.sql` 显示 A 对象全为 0）：
+
+```sql
+SOURCE sql/A/00_preflight.sql;   -- 只读检查 D/B 依赖与 A 对象数量
+SOURCE sql/A/00_install_a.sql;   -- 仅补装 A 的 01～04，不重复安装 D/B
+SOURCE sql/A/07_verify.sql;      -- 结构、对象应 PASS；未装 A 种子时 A07 行数项会 FAIL
+```
+
+需要理解依赖顺序时，等价的手工执行顺序如下（在仓库根目录登录 MySQL 后执行）：
 
 ```sql
 USE charging_platform;
@@ -75,6 +93,8 @@ SOURCE sql/A/07_verify.sql;
 SOURCE sql/A/08_constraint_tests.sql;
 SOURCE sql/A/06_business_queries.sql;
 ```
+
+> `07_verify.sql` 只读，不会创建任何对象。若 A03～A06 为 0，先执行 `sql/A/00_preflight.sql` 查看是否缺少 D/B 前置表，再执行 `sql/A/00_install_a.sql`。
 
 ### 3.2 Python
 
