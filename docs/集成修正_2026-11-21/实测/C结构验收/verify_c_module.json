@@ -1,0 +1,84 @@
+{
+  "checks": [
+    {
+      "check": "connected to charging_platform",
+      "result": "PASS",
+      "detail": "{'mysql_version': '8.0.46', 'database_name': 'charging_platform'}"
+    },
+    {
+      "check": "all eight C tables exist",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "device_telemetry has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=23"
+    },
+    {
+      "check": "alarm has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=23"
+    },
+    {
+      "check": "maintenance_work_order has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=26"
+    },
+    {
+      "check": "spare_part has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=23"
+    },
+    {
+      "check": "warehouse has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=23"
+    },
+    {
+      "check": "inventory has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=23"
+    },
+    {
+      "check": "inventory_transaction has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=29"
+    },
+    {
+      "check": "work_order_part has at least 20 rows",
+      "result": "PASS",
+      "detail": "rows=26"
+    },
+    {
+      "check": "six C views exist",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "twelve C procedures exist",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "eight C triggers exist",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "check": "inventory balances match immutable ledger",
+      "result": "PASS",
+      "detail": "failures=0"
+    },
+    {
+      "check": "part quantities reconcile without loss",
+      "result": "PASS",
+      "detail": "failures=0"
+    },
+    {
+      "check": "telemetry references existing matching B devices",
+      "result": "PASS",
+      "detail": "failures=0"
+    }
+  ]
+}

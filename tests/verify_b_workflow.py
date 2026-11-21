@@ -104,6 +104,14 @@ def run(output=None):
             assert scalar(connection,'SELECT consumed_order_id FROM queue_record WHERE queue_id=%s',(queue,))['consumed_order_id']==order
         case('现场排队→叫号→核验→B开单及资格消费',walk_in_queue)
 
+        def reservation_grace():
+            args,_=prepare(connection,start)
+            args['at_time']=start+timedelta(hours=1,minutes=15)
+            rejected(lambda:b.open_order(connection,**args))
+            args['at_time']=start+timedelta(hours=1,minutes=10)
+            assert b.open_order(connection,**args)>0
+        case('A预约宽限内可开单，右边界拒绝',reservation_grace)
+
         def rollback_atomic():
             args,_=prepare(connection,start)
             with connection.cursor() as cursor:

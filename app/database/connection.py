@@ -21,6 +21,7 @@ def database_connection(
     """创建东八区会话连接并可靠关闭；异常时回滚未提交事务。"""
 
     actual_config = config or DatabaseConfig.from_env()
+    tls_options = {"ssl_ca": actual_config.ssl_ca} if actual_config.ssl_ca else {}
     connection = pymysql.connect(
         host=actual_config.host,
         port=actual_config.port,
@@ -32,6 +33,7 @@ def database_connection(
         autocommit=False,
         connect_timeout=5,
         init_command=f"SET SESSION time_zone = '{SESSION_TIME_ZONE}'",
+        **tls_options,
     )
 
     try:

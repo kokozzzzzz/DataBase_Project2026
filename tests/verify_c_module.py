@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database.connection import database_connection
 
@@ -48,7 +48,7 @@ def run(output: Path | None = None) -> list[dict[str, Any]]:
 
             cursor.execute(
                 """
-                SELECT table_name
+                SELECT table_name AS table_name
                 FROM information_schema.tables
                 WHERE table_schema = DATABASE()
                   AND table_type = 'BASE TABLE'
@@ -68,7 +68,7 @@ def run(output: Path | None = None) -> list[dict[str, Any]]:
                 """
                 SELECT COUNT(*) AS object_count
                 FROM information_schema.views
-                WHERE table_schema = DATABASE() AND table_name LIKE 'v_c_%'
+                WHERE table_schema = DATABASE() AND LEFT(table_name, 4) = 'v_c_'
                 """
             )
             check("six C views exist", cursor.fetchone()["object_count"] == 6)
@@ -79,7 +79,7 @@ def run(output: Path | None = None) -> list[dict[str, Any]]:
                 FROM information_schema.routines
                 WHERE routine_schema = DATABASE()
                   AND routine_type = 'PROCEDURE'
-                  AND routine_name LIKE 'sp_c_%'
+                  AND LEFT(routine_name, 5) = 'sp_c_'
                 """
             )
             procedure_count = len(cursor.fetchall())
@@ -89,7 +89,7 @@ def run(output: Path | None = None) -> list[dict[str, Any]]:
                 """
                 SELECT trigger_name
                 FROM information_schema.triggers
-                WHERE trigger_schema = DATABASE() AND trigger_name LIKE 'c_%'
+                WHERE trigger_schema = DATABASE() AND LEFT(trigger_name, 2) = 'c_'
                 """
             )
             trigger_count = len(cursor.fetchall())

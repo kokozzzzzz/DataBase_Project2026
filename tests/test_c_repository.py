@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from yX.c_app import repository
+from app.database import c_repository as repository
 
 
 class FakeCursor:

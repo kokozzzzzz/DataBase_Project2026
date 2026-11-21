@@ -3,10 +3,9 @@
 -- 不适用：已有 D/B/A 对象的库。已有库请只补装缺失模块；
 --         仅 A 未安装时执行 sql/A/00_install_a.sql。
 --
--- 运行方式（必须在仓库根目录，SOURCE 路径按客户端当前目录解析）：
---   mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 < sql/00_install_all.sql
--- 或在 mysql 客户端中：
---   SOURCE sql/00_install_all.sql;
+-- 推荐从仓库根目录运行（先配置.env，mysql.exe需为8.0客户端）：
+--   python -m app.run_sql --file sql/00_install_all.sql
+-- mysql不在PATH时增加 --mysql "完整路径"；展开SOURCE后批处理，首错停止。
 --
 -- 本脚本只安装结构，不插入业务测试数据。
 -- 需要 D/A 本地种子时，再执行 sql/00_seed_all.sql。
@@ -27,10 +26,7 @@ BEGIN
         SELECT 1
         FROM information_schema.TABLES
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME IN (
-              'user', 'vehicle', 'station', 'charging_order',
-              'charging_reservation', 'settlement_statement'
-          )
+          AND TABLE_TYPE='BASE TABLE'
     ) THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = '00_install_all 只用于空库：检测到已有表。已有库请只补装缺失模块；A 未安装时执行 sql/A/00_install_a.sql。';
@@ -74,6 +70,12 @@ SOURCE sql/A/04_views.sql;
 SOURCE sql/D/04_membership_views.sql;
 SOURCE sql/D/04_membership_procedure.sql;
 SOURCE sql/D/05_settlement_schema.sql;
+
+-- C ③⑦结构，依赖B设备主数据；过程参与调用方事务。
+SOURCE sql/C/01_schema.sql;
+SOURCE sql/C/02_triggers.sql;
+SOURCE sql/C/03_procedures.sql;
+SOURCE sql/C/04_views.sql;
 
 SELECT 'install_all' AS stage,
        'structure installation completed' AS result;

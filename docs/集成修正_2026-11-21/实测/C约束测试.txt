@@ -1,0 +1,9 @@
+test_id	test_name	observed_error	result
+C01	telemetry temperature CHECK	3819	PASS
+C02	spare part code uniqueness	1062	PASS
+C03	locked quantity cannot exceed stock	3819	PASS
+C04	inventory ledger is immutable	1644	PASS
+C05	alarm state transition guard	1644	PASS
+C06	work order state transition guard	1644	PASS
+C07	installed quantity cannot exceed issue	3819	PASS
+C08	ledger must match inventory state	1644	PASS
