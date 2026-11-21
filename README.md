@@ -142,6 +142,11 @@
 | [⑤结算与对账 DDL](sql/D/05_settlement_schema.sql) | 五张正式业务表、跨 B 外键、状态约束、生成列和索引 |
 | [⑤结算与对账结构验收](sql/D/05_settlement_verify.sql) | 表、字段、约束、外键、类型、生成列和引擎的只读检查 |
 | [⑤测试数据依赖检查](sql/D/05_settlement_seed_preflight.sql) | 只读统计现有 B 订单、费用分段、成功支付、退款和可结算订单规模 |
+| [一键安装脚本](sql/00_install_all.sql) | 空库按 D→B→A→D 结算的依赖顺序安装结构，带空库守卫 |
+| [A 安装前置检查](sql/A/00_preflight.sql) | 只读检查 D/B 依赖与 A 对象数量，定位 `07_verify.sql` 全 0 的原因 |
+| [A 结构补装](sql/A/00_install_a.sql) | 已有 D/B、仅缺 A 时只安装 A 的 01～04，带重复建表守卫 |
+| [综合验收](sql/00_verify_all.sql) | A/B/D 结构、D 结算结构与 D 结算数据就绪度 |
+| [跨模块安装与 D 结算数据链复验](docs/跨模块安装与D结算数据链复验_2026-11-21.md) | 8.0.46 空库/补装 A 两条路径、B 固定交易集与 D DP03/DP06 实测记录 |
 | [A 模块开发说明](docs/a/README.md) | ⑥预约排队、⑧公告通知的状态、交付物、接口、运行方式和实测结果 |
 | [⑥预约排队设计说明](docs/a/06_reservation_queue.md) | ⑥需求、E-R、3NF、DDL、并发控制、视图、查询与测试 |
 | [⑧公告通知设计说明](docs/a/08_notice.md) | ⑧公告状态机、版本、接收人、通知状态机、视图与测试 |
@@ -383,21 +388,59 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
 
 ### 6. 初始化数据库结构
 
-④业务线可在 MySQL 客户端中按依赖顺序执行：
+> `sql/A/07_verify.sql` 是**只读验收脚本**，不会创建表、视图、过程或触发器。执行后 A 的对象数为 0，说明 A 的结构脚本尚未执行或在前置依赖处失败，不是 `07_verify.sql` 的问题。
 
-```sql
-SOURCE sql/D/04_membership_core.sql;
-SOURCE sql/D/04_membership_verify.sql;
-SOURCE sql/D/04_membership_seed_core.sql;
--- 核对 9 张表均为 20 行后手动执行 COMMIT;
-SOURCE sql/D/04_membership_constraint_tests.sql;
-SOURCE sql/D/04_membership_business_queries.sql;
--- B 的 station、charging_order 创建完成后：
-SOURCE sql/D/04_membership_integration.sql;
-SOURCE sql/D/04_membership_integration_verify.sql;
+**首次空库（推荐，一条命令）**：在仓库根目录执行
+
+```powershell
+cmd /c "mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 < sql\00_install_all.sql"
 ```
 
-`04_membership_integration.sql` 依赖 B 模块的 `station` 和 `charging_order`；当前已按 B 正式结构在 MySQL 8.0.46 验证通过。脚本不会删除或覆盖已有表，首次执行前应确认不存在同名表。
+或在 MySQL 客户端（当前目录为仓库根目录）中执行 `SOURCE sql/00_install_all.sql;`。脚本固定了以下依赖顺序，并带空库守卫（检测到已有表会中止，避免重复建表）：
+
+1. D ④ 核心表；
+2. B ① ② 结构、设施触发器、视图、交易保护触发器；
+3. D ④ 跨模块表；
+4. A ⑥ ⑧ 结构、触发器、存储过程、视图；
+5. D ④ 视图/过程、D ⑤ 结算五表。
+
+**已有部分模块的库（只补装缺失模块）**：
+
+- 若 A 的表、视图、过程、触发器均为 0：先确认 D 的 `user`/`vehicle` 与 B 的 `station`/`charging_gun`/`parking_space`/`equipment_outage_plan`/`charging_order` 已存在，然后执行：
+
+  ```sql
+  SOURCE sql/A/00_preflight.sql;     -- 定位缺项；A03～A06 为 0 时给出明确提示
+  SOURCE sql/A/00_install_a.sql;     -- 只装 A 结构，不重复安装 D/B
+  SOURCE sql/A/07_verify.sql;        -- 未装 A 种子时 A07 行数项会 FAIL，结构与对象项应 PASS
+  ```
+
+- 不要重复执行 `sql/D/04_membership_core.sql`、`sql/B/01_schema.sql` 或 `sql/A/01_schema.sql`；重复 `CREATE TABLE` 会报 already exists。
+
+**可选的本地联调种子**（D 核心 20 行 + A 夹具 + A 每表 ≥20 行）：
+
+```sql
+SOURCE sql/00_seed_all.sql;
+```
+
+**生成 B 固定交易数据（D ⑤ 结算实测依赖）**：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.seed_b_integration --commit --output ..\B_本机实测\固定测试集.json
+```
+
+预期生成 40 笔已出账且足额支付订单、100 条支付、20 条次月退款。随后执行 D 的结算数据预检，`DP03` 应为 40（PASS），`DP06` 应为 20（PASS）：
+
+```powershell
+cmd /c "mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 charging_platform < sql\D\05_settlement_seed_preflight.sql"
+```
+
+**综合验收**：
+
+```sql
+SOURCE sql/00_verify_all.sql;
+```
+
+> `sql/D/04_membership_final_verify.sql` 只适用于“仅 D 核心种子”的阶段；执行 B 固定测试集后 `user`/`vehicle`/`promotion` 行数会超过 20，该脚本会按设计报 FAIL。全模块联调后请使用 `sql/00_verify_all.sql`。
 
 ### 7. 设置 Git 身份并同步代码
 

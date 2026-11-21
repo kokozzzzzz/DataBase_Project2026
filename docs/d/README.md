@@ -132,6 +132,8 @@ D同学
 
 ## 8. 执行与运行方式
 
+> 全组空库优先使用仓库根目录的 `sql/00_install_all.sql`（含 D 核心、D 跨模块、D 结算五表，以及 B/A 结构）；D 模块也可按下述顺序单独安装。
+
 在仓库根目录登录 MySQL 后，核心部分按顺序执行：
 
 ```sql
@@ -161,6 +163,8 @@ SOURCE sql/D/05_settlement_preflight.sql;       -- P01～P04 必须 PASS，P05 �
 SOURCE sql/D/05_settlement_schema.sql;          -- 首次创建五张表，不可重复执行；本机已完成
 SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S10 已全部 PASS
 ```
+
+> 执行 B 固定测试集后，`04_membership_final_verify.sql` 会因 `user`/`vehicle`/`promotion` 行数超过 20、B 测试用户无会员等级而按设计报 FAIL；该脚本只用于 D 核心种子阶段。全模块联调请使用仓库根目录的 `sql/00_verify_all.sql`。
 
 Python 侧：
 
