@@ -1,0 +1,62 @@
+digraph robustness_device_maintenance {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.3, ranksep=1.0];
+    node [fontname="Microsoft YaHei", fontsize=11];
+    edge [fontname="Microsoft YaHei", fontsize=9, color="#555555"];
+
+    subgraph cluster_boundary {
+        label="边界对象（Boundary）"; fontsize=13; fontcolor="#C55A11";
+        style="rounded,dashed"; color="#C55A11"; bgcolor="#FDF2E9";
+        b_gateway [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                    label="«boundary»\n设备采集网关"];
+        b_board [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                 label="«boundary»\n监控与告警看板"];
+        b_work_order [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                      label="«boundary»\n维修工单操作界面"];
+    }
+
+    subgraph cluster_control {
+        label="控制对象（Control）"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#1F4E79"; bgcolor="#F2F7FC";
+        c_ingest [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n遥测接入控制器\n采样/故障识别"];
+        c_alarm [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                 label="«control»\n告警控制器\n生成/合并/查询"];
+        c_order [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                 label="«control»\n工单控制器\n派发/接单/到场/维修"];
+        c_verify [shape=box, style="rounded,filled", fillcolor="#DDEBF7", color="#1F4E79",
+                  label="«control»\n维修复核控制器\n通过恢复/失败返修"];
+    }
+
+    subgraph cluster_entity {
+        label="实体对象（Entity）"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        e_telemetry [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                     label="device_telemetry\n遥测记录"];
+        e_alarm [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="alarm\n设备告警"];
+        e_order [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                 label="maintenance_work_order\n维修工单"];
+        e_facility [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                    label="charging_pile / charging_gun\nB 桩枪（逻辑引用）"];
+        e_offline [shape=cylinder, style=filled, fillcolor="#E2F0D9", color="#548235",
+                   label="equipment_offline_task\nB 离线待办"];
+    }
+
+    b_gateway -> c_ingest [label="上传遥测与故障码"];
+    c_ingest -> e_telemetry [label="写入采样"];
+    c_ingest -> e_facility [label="校验桩枪归属/更新状态", style=dashed];
+    c_ingest -> e_alarm [label="有故障时生成或复用"];
+    c_ingest -> e_offline [label="达到阈值时去重建待办", style=dashed];
+    b_board -> c_alarm [label="查询告警与健康状态"];
+    c_alarm -> e_telemetry [label="关联来源采样", style=dashed];
+    c_alarm -> e_alarm [label="读取/迁移状态"];
+    b_work_order -> c_order [label="派单/推进/取消"];
+    c_order -> e_alarm [label="锁定并确认告警"];
+    c_order -> e_order [label="创建/推进工单"];
+    b_work_order -> c_verify [label="提交复核结果"];
+    c_verify -> e_order [label="关闭或退回返修"];
+    c_verify -> e_alarm [label="最后一张工单通过后恢复"];
+    c_verify -> e_facility [label="恢复桩/枪状态", style=dashed];
+    c_verify -> e_offline [label="关闭离线待办", style=dashed];
+}

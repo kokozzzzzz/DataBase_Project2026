@@ -1,0 +1,66 @@
+digraph er_device_maintenance {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.4, nodesep=0.55, ranksep=1.15, splines=true,
+           dpi=155, labelloc=t,
+           label="③ 设备监控与故障工单｜局部 E-R 图\nB 桩/枪为共享主数据；虚线表示跨模块逻辑引用，C 内部外键为实线。"];
+    node [shape=plain, fontname="Microsoft YaHei", fontsize=10];
+    edge [dir=none, color="#60738b", fontcolor="#34465c", fontname="Microsoft YaHei",
+          fontsize=10, labeldistance=1.5];
+
+    subgraph cluster_facility {
+        label="B 桩枪主数据（逻辑引用）"; fontsize=13; fontcolor="#BF9000";
+        style="rounded,dashed"; color="#BF9000"; bgcolor="#FFF8E1";
+        pile [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#FFF2CC"><B>充电桩　charging_pile</B></TD></TR>
+            <TR><TD ALIGN="LEFT">pile_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">station_id · status</TD></TR>
+            </TABLE>>];
+        gun [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#FFF2CC"><B>充电枪　charging_gun</B></TD></TR>
+            <TR><TD ALIGN="LEFT">gun_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">pile_id (B 内外键) · status</TD></TR>
+            </TABLE>>];
+        pile -> gun [label="桩枪归属", taillabel="1", headlabel="0..N", style=solid];
+    }
+
+    subgraph cluster_c {
+        label="C 设备监控与故障工单"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F2F7FC";
+        telemetry [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#DDEBF7"><B>设备遥测　device_telemetry</B></TD></TR>
+            <TR><TD ALIGN="LEFT">telemetry_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">pile_id / gun_id (逻辑引用)</TD></TR>
+            <TR><TD ALIGN="LEFT">collect_time · voltage · current · power</TD></TR>
+            <TR><TD ALIGN="LEFT">module_temp · offline_duration_sec</TD></TR>
+            <TR><TD ALIGN="LEFT">fault_code · quality_flag</TD></TR>
+            </TABLE>>];
+        alarm [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#DDEBF7"><B>告警　alarm</B></TD></TR>
+            <TR><TD ALIGN="LEFT">alarm_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">pile_id / gun_id (逻辑引用)</TD></TR>
+            <TR><TD ALIGN="LEFT">source_telemetry_id (FK, NULL)</TD></TR>
+            <TR><TD ALIGN="LEFT">alarm_code · alarm_level · alarm_status</TD></TR>
+            <TR><TD ALIGN="LEFT">occur_time · recover_time · recover_verify_status</TD></TR>
+            </TABLE>>];
+        work_order [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#DDEBF7"><B>维修工单　maintenance_work_order</B></TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_id (PK) · work_order_no (UQ)</TD></TR>
+            <TR><TD ALIGN="LEFT">alarm_id (FK) · maintainer_id (外部编号)</TD></TR>
+            <TR><TD ALIGN="LEFT">dispatch_time · accept_time · arrive_time</TD></TR>
+            <TR><TD ALIGN="LEFT">repair_finish_time · verify_time</TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_status · verify_result</TD></TR>
+            </TABLE>>];
+    }
+
+    pile -> telemetry [label="桩采样", taillabel="1", headlabel="0..N", style=dashed];
+    gun -> telemetry [label="枪采样（可空）", taillabel="0..1", headlabel="0..N", style=dashed];
+    pile -> alarm [label="桩告警", taillabel="1", headlabel="0..N", style=dashed];
+    gun -> alarm [label="枪告警（可空）", taillabel="0..1", headlabel="0..N", style=dashed];
+    telemetry -> alarm [label="来源采样", taillabel="0..1", headlabel="0..N", style=solid];
+    alarm -> work_order [label="重复派单/历史留存", taillabel="1", headlabel="0..N", style=solid];
+}

@@ -1,0 +1,84 @@
+digraph er_spare_inventory {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.4, nodesep=0.55, ranksep=1.15, splines=true,
+           dpi=155, labelloc=t,
+           label="⑦ 备件库存与领用管理｜局部 E-R 图\n工单实体来自 C 的维修工单表；库存流水仅追加，冲正通过 related_transaction_id 关联原流水。"];
+    node [shape=plain, fontname="Microsoft YaHei", fontsize=10];
+    edge [dir=none, color="#60738b", fontcolor="#34465c", fontname="Microsoft YaHei",
+          fontsize=10, labeldistance=1.5];
+
+    subgraph cluster_catalog {
+        label="备件与仓库档案"; fontsize=13; fontcolor="#BF9000";
+        style="rounded,dashed"; color="#BF9000"; bgcolor="#FFF8E1";
+        spare_part [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#FFF2CC"><B>备件　spare_part</B></TD></TR>
+            <TR><TD ALIGN="LEFT">spare_part_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">part_code (UQ) · part_name</TD></TR>
+            <TR><TD ALIGN="LEFT">model · spec · unit · part_status</TD></TR>
+            </TABLE>>];
+        warehouse [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#FFF2CC"><B>仓库　warehouse</B></TD></TR>
+            <TR><TD ALIGN="LEFT">warehouse_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">warehouse_code (UQ) · warehouse_name</TD></TR>
+            <TR><TD ALIGN="LEFT">location · warehouse_status</TD></TR>
+            </TABLE>>];
+    }
+
+    subgraph cluster_stock {
+        label="库存与不可变流水"; fontsize=13; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F2F7FC";
+        inventory [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#DDEBF7"><B>分仓库存　inventory</B></TD></TR>
+            <TR><TD ALIGN="LEFT">inventory_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">warehouse_id (FK) · spare_part_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">quantity · locked_quantity · version_no</TD></TR>
+            <TR><TD ALIGN="LEFT">UNIQUE (warehouse_id, spare_part_id)</TD></TR>
+            </TABLE>>];
+        transaction [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#DDEBF7"><B>库存流水　inventory_transaction</B></TD></TR>
+            <TR><TD ALIGN="LEFT">transaction_id (PK) · transaction_no (UQ)</TD></TR>
+            <TR><TD ALIGN="LEFT">warehouse_id / spare_part_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_id (FK, NULL) · related_transaction_id (FK, NULL)</TD></TR>
+            <TR><TD ALIGN="LEFT">transaction_type · quantity_change</TD></TR>
+            <TR><TD ALIGN="LEFT">before_quantity · after_quantity · occurred_at</TD></TR>
+            </TABLE>>];
+    }
+
+    subgraph cluster_work_order {
+        label="工单备件核算"; fontsize=13; fontcolor="#548235";
+        style="rounded,dashed"; color="#548235"; bgcolor="#F4F9F0";
+        work_order [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#E2F0D9"><B>维修工单　maintenance_work_order</B></TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">alarm_id (FK) · work_order_no (UQ)</TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_status · verify_result</TD></TR>
+            </TABLE>>];
+        work_order_part [label=<
+            <TABLE BORDER="1" COLOR="#8aa0b4" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+            <TR><TD BGCOLOR="#E2F0D9"><B>工单备件明细　work_order_part</B></TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_part_id (PK)</TD></TR>
+            <TR><TD ALIGN="LEFT">work_order_id / spare_part_id / warehouse_id (FK)</TD></TR>
+            <TR><TD ALIGN="LEFT">planned_qty · issued_qty</TD></TR>
+            <TR><TD ALIGN="LEFT">installed_qty · returned_qty · part_usage_status</TD></TR>
+            <TR><TD ALIGN="LEFT">UNIQUE (work_order_id, spare_part_id, warehouse_id)</TD></TR>
+            </TABLE>>];
+    }
+
+    warehouse -> inventory [label="存放库存", taillabel="1", headlabel="0..N", style=solid];
+    spare_part -> inventory [label="对应备件", taillabel="1", headlabel="0..N", style=solid];
+    warehouse -> transaction [label="发生于仓库", taillabel="1", headlabel="0..N", style=solid];
+    spare_part -> transaction [label="涉及备件", taillabel="1", headlabel="0..N", style=solid];
+    inventory -> transaction [label="当前量与流水对账\n（仓库+备件逻辑关联）",
+                              taillabel="1", headlabel="0..N", style=dashed];
+    work_order -> transaction [label="领用/退料业务", taillabel="0..1", headlabel="0..N", style=solid];
+    work_order -> work_order_part [label="拆分备件明细", taillabel="1", headlabel="0..N", style=solid];
+    spare_part -> work_order_part [label="计划使用", taillabel="1", headlabel="0..N", style=solid];
+    warehouse -> work_order_part [label="指定领料仓", taillabel="1", headlabel="0..N", style=solid];
+    transaction -> transaction [label="原流水/冲正流水", taillabel="0..1", headlabel="0..1",
+                                style=dashed, constraint=false];
+}
