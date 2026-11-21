@@ -1,0 +1,60 @@
+digraph use_case_reservation {
+    graph [rankdir=LR, newrank=true, fontname="Microsoft YaHei", fontsize=14,
+           bgcolor="white", pad=0.35, nodesep=0.35, ranksep=0.9, compound=true];
+    node [fontname="Microsoft YaHei", fontsize=12];
+    edge [fontname="Microsoft YaHei", fontsize=10, color="#555555"];
+
+    subgraph cluster_actors_left {
+        label=""; style=invis;
+        driver [shape=box, style="rounded,filled", fillcolor="#FCE4D6", color="#C55A11",
+                label="车主用户\n（预约/排队/到站）"];
+        ops [shape=box, style="rounded,filled", fillcolor="#FFF2CC", color="#BF9000",
+             label="场站运维人员\n（叫号/现场核验/放行）"];
+    }
+
+    subgraph cluster_system {
+        label="⑥ 预约、排队与到站管理系统边界";
+        fontsize=14; fontcolor="#1F4E79";
+        style="rounded,dashed"; color="#2F5597"; bgcolor="#F7FBFF";
+
+        uc_create [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="创建预约"];
+        uc_cancel [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="取消预约"];
+        uc_reschedule [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="改约"];
+        uc_queue [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="现场排队入队"];
+        uc_call [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="叫下一号"];
+        uc_arrive [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="到站核验"];
+        uc_occupy [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="车位入位/释放"];
+        uc_query [shape=ellipse, style=filled, fillcolor="#DDEBF7", color="#2F5597", label="查询预约/排队/占用"];
+        uc_consume [shape=ellipse, style=filled, fillcolor="#E2F0D9", color="#548235", label="消费预约/排队资格"];
+    }
+
+    subgraph cluster_actors_right {
+        label=""; style=invis;
+        tx [shape=box, style="rounded,filled", fillcolor="#E2F0D9", color="#548235",
+            label="B 充电订单模块\n（开单后消费资格）"];
+        admin [shape=box, style="rounded,filled", fillcolor="#EDE7F6", color="#5E35B1",
+               label="平台运营管理员\n（查询与运营复盘）"];
+    }
+
+    driver -> uc_create;
+    driver -> uc_cancel;
+    driver -> uc_reschedule;
+    driver -> uc_queue;
+    driver -> uc_arrive;
+    driver -> uc_query;
+
+    ops -> uc_call;
+    ops -> uc_arrive;
+    ops -> uc_occupy;
+    ops -> uc_query;
+
+    admin -> uc_query;
+    tx -> uc_consume;
+
+    uc_create -> uc_arrive [style=dashed, label="«include»\n有效预约"];
+    uc_queue -> uc_call [style=dashed, label="«include»"];
+    uc_call -> uc_arrive [style=dashed, label="«include»\n叫号有效"];
+    uc_arrive -> uc_occupy [style=dashed, label="«include»\n核验即占位"];
+    uc_arrive -> uc_consume [style=dashed, label="«extend»\n开单时消费"];
+    uc_occupy -> uc_query [style=dotted, label="数据来源"];
+}

@@ -16,7 +16,7 @@
 - 平台与运营商之间的结算对账
 - 预约排队、备件库存、公告通知等新增业务的跨模块协作
 
-**当前阶段**：Day 1 需求分析与概念设计。项目骨架、数据字典、业务流程图与 Python 依赖清单已建立；关系模式、DDL、SQL 与 Python 持久层代码待实现。
+**当前阶段**：项目已进入关系模式、DDL、业务 SQL 与 Python 持久层实现阶段。B 的 16 张正式设施/订单表、D 的 9 张独立核心表与 3 张跨模块表、A 的 10 张预约排队/公告通知表均已在 MySQL 8.0.46 中完成建表与结构验收；D 核心测试数据、约束、查询和事务及 B–D 20 项集成检查均已通过，A 模块的测试数据、约束、查询和事务验证也已完成。Python 公共连接已统一使用 `+08:00` 会话时区，优惠券发放、锁定、释放和支付核销事务已实测，全仓 73 项单元测试通过。⑤结算与对账的 5 张表已在 MySQL 8.0.46 创建，S01～S10 结构验收全部通过，下一步准备测试数据。C 的 ③⑦ 数据字典与局部 E-R 图已提交，DDL 与持久层进度以 C 的最新分支为准。新增 ⑥⑦⑧ 三条业务线的视图/过程数量考核口径仍需向指导教师确认。
 
 ## 业务范围
 
@@ -50,9 +50,9 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| 数据库 | MySQL（具体版本第一天组内确认） |
+| 数据库 | MySQL 8.0.46 / InnoDB / utf8mb4 |
 | 开发语言 | Python 3.13（当前参考环境，建议 3.11+） |
-| 持久层方案 | SQLAlchemy 2.1.8 + PyMySQL 1.2.4 |
+| 持久层方案 | PyMySQL 1.2.4（已实现）+ SQLAlchemy 2.1.8（依赖已固定，按模块需要使用） |
 | 依赖管理 | pip + `requirements.txt` |
 | 版本管理 | Git + GitHub，一个公共仓库 |
 | 设计工具 | E-R 图 / UML 类图（PowerDesigner、Visio、StarUML 等） |
@@ -95,11 +95,11 @@
 | ① 场站与充电设施 | `operator`、`station`、`charging_pile`、`charging_gun`、`parking_space`、`equipment_status_log`、`equipment_outage_plan` |
 | ② 充电订单与计费 | `charging_order`、`tariff_rule`、`order_fee_detail`、`payment_record`、`refund_record` |
 | ③ 设备监控与故障工单 | `device_telemetry`、`alarm`、`maintenance_work_order` |
-| ④ 用户与会员运营 | `user`、`vehicle`、`membership_record`、`promotion`、`coupon`、`coupon_redemption`、`enterprise_customer`、`fleet`、`fleet_vehicle`、`fleet_quota_record` |
+| ④ 用户与会员运营 | `membership_level`、`user`、`vehicle`、`membership_record`、`promotion`、`promotion_station`、`coupon`、`coupon_redemption`、`enterprise_customer`、`fleet`、`fleet_vehicle`、`fleet_quota_record` |
 | ⑤ 结算与对账 | `settlement_statement`、`settlement_detail`、`reconciliation_difference`、`reconciliation_confirmation`、`invoice_record` |
-| ⑥ 预约、排队与到站 | `charging_reservation`、`queue_record`、`arrival_checkin`、`parking_occupancy` |
+| ⑥ 预约、排队与到站 | `charging_reservation`、`reservation_status_log`、`queue_record`、`queue_status_log`、`arrival_checkin`、`parking_occupancy` |
 | ⑦ 备件库存与领用 | `spare_part`、`warehouse`、`inventory`、`inventory_transaction`、`work_order_part` |
-| ⑧ 场站服务公告与通知 | `station_notice`、`notice_recipient`、`notification_record` |
+| ⑧ 场站服务公告与通知 | `station_notice`、`notice_revision`、`notice_recipient`、`notification_record` |
 
 ## 三条端到端流程
 
@@ -113,11 +113,14 @@
 
 ```text
 .
-├── docs/            # 数据字典、任务分工、执行方案、业务流程图
+├── A/               # A 模块说明、业务图、测试证据与字典生成工具
+├── B/               # B 设施/订单数据字典、业务图与对接清单
+├── app/             # Python 数据库连接、持久层、服务层和演示入口
+├── docs/            # 数据字典、模块说明、任务分工、执行方案和业务流程图
+├── sql/             # 各成员 DDL、测试数据、业务查询与验证脚本
 ├── target/          # 课程设计任务书与小组思路文档
-├── sql/             # DDL、查询 SQL、视图、存储过程与触发器（计划）
-├── src/             # Python 持久层与核心业务代码（计划）
-├── tests/           # 持久层、事务与并发测试（计划）
+├── tests/           # 持久层与事务单元测试
+├── yX/              # C ③⑦ 数据字典与局部 E-R 图
 ├── requirements.txt # Python 依赖清单
 └── README.md
 ```
@@ -132,6 +135,103 @@
 | [四人四天任务分工计划](docs/四人四天任务分工计划_八条业务线_MySQL_Python.docx) | 四天总览、逐日任务、验收清单与风险应对 |
 | [第一天详细执行方案](docs/第一天详细执行方案_八条业务线_MySQL_Python.docx) | Day 1 时间安排、跨模块规则、公共编号与各成员任务 |
 | [整体业务流程图](docs/新能源汽车充电桩平台_八条业务线整体业务流程图.png) | 八条业务线及跨模块交接关系 |
+| [D 模块开发说明](docs/d/README.md) | ④用户会员、⑤结算对账的状态、交付物、运行方式和待确认接口 |
+| [④业务线 DDL 说明](docs/d/04_membership.md) | ④核心表与跨模块表的设计说明、执行顺序和关键约束 |
+| [⑤结算与对账设计说明](docs/d/05_settlement.md) | ⑤五表结构、金额与账期口径、状态流转、视图/过程及实施计划 |
+| [⑤结算与对账建表前检查](sql/D/05_settlement_preflight.sql) | B 依赖、编号类型、引擎排序规则与目标表不存在性的只读检查 |
+| [⑤结算与对账 DDL](sql/D/05_settlement_schema.sql) | 五张正式业务表、跨 B 外键、状态约束、生成列和索引 |
+| [⑤结算与对账结构验收](sql/D/05_settlement_verify.sql) | 表、字段、约束、外键、类型、生成列和引擎的只读检查 |
+| [⑤测试数据依赖检查](sql/D/05_settlement_seed_preflight.sql) | 只读统计现有 B 订单、费用分段、成功支付、退款和可结算订单规模 |
+| [一键安装脚本](sql/00_install_all.sql) | 空库按 D→B→A→D 结算的依赖顺序安装结构，带空库守卫 |
+| [A 安装前置检查](sql/A/00_preflight.sql) | 只读检查 D/B 依赖与 A 对象数量，定位 `07_verify.sql` 全 0 的原因 |
+| [A 结构补装](sql/A/00_install_a.sql) | 已有 D/B、仅缺 A 时只安装 A 的 01～04，带重复建表守卫 |
+| [综合验收](sql/00_verify_all.sql) | A/B/D 结构、D 结算结构与 D 结算数据就绪度 |
+| [跨模块安装与 D 结算数据链复验](docs/跨模块安装与D结算数据链复验_2026-11-21.md) | 8.0.46 空库/补装 A 两条路径、B 固定交易集与 D DP03/DP06 实测记录 |
+| [A 模块开发说明](docs/a/README.md) | ⑥预约排队、⑧公告通知的状态、交付物、接口、运行方式和实测结果 |
+| [⑥预约排队设计说明](docs/a/06_reservation_queue.md) | ⑥需求、E-R、3NF、DDL、并发控制、视图、查询与测试 |
+| [⑧公告通知设计说明](docs/a/08_notice.md) | ⑧公告状态机、版本、接收人、通知状态机、视图与测试 |
+| [A 数据字典](docs/a/A_06_08_data_dictionary.xlsx) | 10 表 116 字段，含类型、键、约束、索引与待确认事项 |
+| [A 模块说明与导航](A/README.md) | A 的 SQL/Python/图表/测试证据索引与快速复现 |
+
+## B 模块第三阶段交付
+
+B正式交易服务已接入A预约/排队资格、占位及D优惠券事务，提供开单、读数、分时核价、支付补缴和部分退款。B-FORMAL-v1测试集覆盖16张B表，每表至少20行，包括40笔已出账且足额支付订单、80条费用分段、100条支付及20条次月退款。D结算数据预检DP03/DP06均PASS。
+
+本次在独立MySQL 8.4.13实例完成16项真实数据库检查，全仓87项单元测试通过；新增服务与触发器在小组8.0.46环境待复验。D券服务的两处支付判定改为当前读，释放券时清除旧账单确认，请D核对。运行顺序、已定规则和交接见[B开发说明](B/README.md)、[接口与交接决定](B/第三天材料/接口与交接决定.md)、[固定数据说明](B/第三天材料/固定测试数据说明.md)及[本次验证记录](B/第三天材料/验证记录.md)。
+## A 模块第三阶段交付
+
+A 已完成 ⑥ 预约、排队与到站管理，以及 ⑧ 场站服务公告与通知：
+
+- 新增 10 张表、116 个字段、34 个外键、40 个 CHECK、8 个视图、14 个存储过程、13 个触发器；
+- 同枪预约使用“锁枪行 + 锁定读”保证并发安全，两个连接同时预约同一枪同一时段时仅一个成功；
+- 到站核验触发器自动生成车位占用；生成列唯一约束保证同车位/同车辆最多一条未释放占用；
+- 预约/排队资格只能消费一次，B 开单后调用 `sp_consume_admission` 原子消费；
+- 公开公告、定向停运通知、公告版本、接收人快照、通知发送/失败/阅读状态机均已实现；
+- 10 张表各至少 20 条测试数据；16 项约束测试、17 项真实数据库验收、61 项 Python 单元测试全部通过。
+
+详情见 [A 模块开发说明](docs/a/README.md)、[A 模块说明与导航](A/README.md)、[⑥预约排队设计说明](docs/a/06_reservation_queue.md)、[⑧公告通知设计说明](docs/a/08_notice.md)和[A 本机实测记录](A/第三天材料/实测/README.md)。
+
+> A 的 `sql/A/00_local_shared_fixtures.sql` 仅用于本地联调，提供 B 场站/枪/车位/停运计划的测试夹具；B 正式种子到位后应替换，不影响 A 的表结构和业务规则。
+
+## 当前可验证成果
+
+④用户与会员运营已完成可独立开发部分：
+
+- 9 张核心表均已在 `charging_platform` 创建，使用 InnoDB 与 `utf8mb4_0900_ai_ci`
+- 9 张核心表各提交 20 条虚构测试数据，共 180 条
+- 主键、外键、唯一约束、CHECK 约束及 ID 类型检查全部通过
+- 约束测试 T01～T08 全部 PASS，9 条核心业务查询结果符合预期
+- Python 可连接 MySQL 8.0.46 并识别 9/9 张核心表
+- 会员等级变更使用行锁和事务，同时更新当前等级与历史记录；真实数据库回滚演示 PASS
+- 车辆加入/退出车队使用车辆行锁串行化并发请求；调车事务及回滚演示 PASS
+- 优惠活动使用 `Decimal` 计算固定减免和百分比折扣；100 元订单最优活动实测优惠 24 元
+- ④业务线已创建 3 个实用视图和 1 个只读优惠试算存储过程，数据库验收通过
+- ④最终综合回归 F01～F08 全部 PASS，核心表、约束、业务一致性和敏感字段检查正常
+- 3 张跨模块表已创建；3 个主键、7 个外键、4 个唯一约束和 5 个 CHECK 均通过 I01～I06 验收
+- B 的 16 张表、7 个触发器、6 个视图及 D 的 12 张表已完成 20 项集成检查，全部 PASS 且测试数据已回滚
+- Python 公共连接自动执行 `SET SESSION time_zone = '+08:00'`，真实连接返回 `+08:00`
+- 优惠券发放、锁定、释放和支付核销使用行锁与同一事务；真实数据库完整链路及回滚均 PASS
+- D 模块原有 Python 单元测试 23 项全部通过；加入 A 模块、连接时区和优惠券测试后全仓 73 项全部通过
+
+快速验证：
+
+```powershell
+Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
+.\.venv\Scripts\python.exe -m app.run_membership_demo
+.\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_promotion_demo
+.\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
+.\.venv\Scripts\python.exe tests\verify_b_structure.py
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+详细说明见 [D 模块开发说明](docs/d/README.md)。
+
+A 模块当前可验证成果：
+
+- 10 张表均已在 `charging_platform` 创建，使用 InnoDB 与 `utf8mb4_0900_ai_ci`
+- 10 张表测试数据为 20/25/20/25/20/20/21/47/20/20 条，均 ≥20
+- 34 个外键、40 个 CHECK、8 个视图、14 个存储过程、13 个触发器全部创建成功
+- 16 项约束/状态机/过程测试全部 PASS，7 条业务查询执行成功
+- 真实数据库验收 17 项全部 PASS：结构、数据、预约→核验→占位、定向公告→发送→撤回、同枪并发
+- 同枪并发演示：两个连接同时预约同一时段，一个成功、一个 `RESERVATION_GUN_OVERLAP`，清理后 0 残留
+- A 模块合入时全仓 Python 单元测试共 61 项，全部通过（含 A 的持久层、服务层与错误翻译测试）；加入公共连接时区和 D 优惠券事务测试后当前全仓为 73 项
+
+A 快速验证：
+
+```powershell
+Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
+.\.venv\Scripts\python.exe -m app.run_reservation_demo
+.\.venv\Scripts\python.exe -m app.run_notice_demo
+.\.venv\Scripts\python.exe -m app.run_reservation_workflow_demo
+.\.venv\Scripts\python.exe -m app.run_notice_workflow_demo
+.\.venv\Scripts\python.exe -m app.run_reservation_concurrency_demo
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe tests/verify_a_module.py
+```
+
+详细说明见 [A 模块开发说明](docs/a/README.md)。
 
 ## 开发计划
 
@@ -160,12 +260,14 @@
 
 以下事项需组内讨论或向指导教师确认，确认后更新数据字典与本文档：
 
-- MySQL 具体版本（Python 3.13 + SQLAlchemy 2.1.8 + PyMySQL 1.2.4 已通过 `requirements.txt` 固定）
+- C 模块的最终表结构、DDL 执行顺序及 A/B/D 跨模块联调时间；A/B 结构已接入并验证
 - 新增三条业务线的考核口径（视图、存储过程/触发器数量）
 - 设备停运计划的唯一登记责任人（B 或 C）
-- 预约迟到保留时长、叫号保留时长与现场排队优先级
+- 预约迟到保留时长、叫号保留时长、排队等待过期时长与现场排队优先级
+- 预约提前核验窗口（当前最多提前 30 分钟）
+- 公开公告是否需要主动推送，以及通知渠道优先级与重试策略
 - 车位与充电枪的映射基数
-- 优惠券锁定/核销时点，支付失败、取消、退款时的回滚规则
+- 优惠券已按“锁券时写订单优惠、支付失败时释放、支付成功后核销”实现；退款后是否返券及优惠规则快照仍需确认
 - 应付、优惠、实收、退款、净收的金额口径及跨账期调整规则
 
 ## 协作规范
@@ -186,7 +288,7 @@
 | --- | --- | --- |
 | Git | 任意较新版本 | 拉取代码与日常提交 |
 | Python | 3.13（参考环境，建议 3.11+） | 运行持久层与测试 |
-| MySQL | 版本以组内 Day 1 决议为准 | 本地数据库服务 |
+| MySQL | 8.0.46 | 本地数据库服务 |
 
 ### 2. 克隆仓库
 
@@ -258,15 +360,21 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
 
 ### 5. 配置数据库连接
 
-1. 启动本地 MySQL，创建项目数据库（库名为占位，最终以组内统一为准）：
+1. 启动本地 MySQL，创建全组统一数据库：
 
    ```sql
    CREATE DATABASE charging_platform
      DEFAULT CHARACTER SET utf8mb4
-     COLLATE utf8mb4_unicode_ci;
+     COLLATE utf8mb4_0900_ai_ci;
    ```
 
-2. 在仓库根目录创建 `.env`，按组内约定填写连接信息：
+2. 在仓库根目录复制示例配置，并填写本机密码：
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   `.env` 内容如下：
 
    ```dotenv
    DB_HOST=127.0.0.1
@@ -276,15 +384,63 @@ python -c "import sqlalchemy, pymysql, dotenv, pytest; print('dependencies ok')"
    DB_NAME=charging_platform
    ```
 
-3. `.env` 已被 `.gitignore` 忽略，**不要提交**，也不要把密码写进代码或文档。变量名以 `src/` 首次提交的配置模块为准，当前为约定草案。
+3. `.env` 已被 `.gitignore` 忽略，**不要提交**，也不要把密码写进代码或文档。变量名由 `app/database/config.py` 统一读取。公共连接建立时会自动设置会话时区为 `+08:00`，不依赖 MySQL 服务器的 `SYSTEM` 默认时区。
 
 ### 6. 初始化数据库结构
 
-当前 `sql/` 尚未提交 DDL。Day 2 建表脚本落地后，按实际文件名执行，例如：
+> `sql/A/07_verify.sql` 是**只读验收脚本**，不会创建表、视图、过程或触发器。执行后 A 的对象数为 0，说明 A 的结构脚本尚未执行或在前置依赖处失败，不是 `07_verify.sql` 的问题。
 
-```bash
-mysql -u root -p charging_platform < sql/00_schema.sql
+**首次空库（推荐，一条命令）**：在仓库根目录执行
+
+```powershell
+cmd /c "mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 < sql\00_install_all.sql"
 ```
+
+或在 MySQL 客户端（当前目录为仓库根目录）中执行 `SOURCE sql/00_install_all.sql;`。脚本固定了以下依赖顺序，并带空库守卫（检测到已有表会中止，避免重复建表）：
+
+1. D ④ 核心表；
+2. B ① ② 结构、设施触发器、视图、交易保护触发器；
+3. D ④ 跨模块表；
+4. A ⑥ ⑧ 结构、触发器、存储过程、视图；
+5. D ④ 视图/过程、D ⑤ 结算五表。
+
+**已有部分模块的库（只补装缺失模块）**：
+
+- 若 A 的表、视图、过程、触发器均为 0：先确认 D 的 `user`/`vehicle` 与 B 的 `station`/`charging_gun`/`parking_space`/`equipment_outage_plan`/`charging_order` 已存在，然后执行：
+
+  ```sql
+  SOURCE sql/A/00_preflight.sql;     -- 定位缺项；A03～A06 为 0 时给出明确提示
+  SOURCE sql/A/00_install_a.sql;     -- 只装 A 结构，不重复安装 D/B
+  SOURCE sql/A/07_verify.sql;        -- 未装 A 种子时 A07 行数项会 FAIL，结构与对象项应 PASS
+  ```
+
+- 不要重复执行 `sql/D/04_membership_core.sql`、`sql/B/01_schema.sql` 或 `sql/A/01_schema.sql`；重复 `CREATE TABLE` 会报 already exists。
+
+**可选的本地联调种子**（D 核心 20 行 + A 夹具 + A 每表 ≥20 行）：
+
+```sql
+SOURCE sql/00_seed_all.sql;
+```
+
+**生成 B 固定交易数据（D ⑤ 结算实测依赖）**：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.seed_b_integration --commit --output ..\B_本机实测\固定测试集.json
+```
+
+预期生成 40 笔已出账且足额支付订单、100 条支付、20 条次月退款。随后执行 D 的结算数据预检，`DP03` 应为 40（PASS），`DP06` 应为 20（PASS）：
+
+```powershell
+cmd /c "mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 charging_platform < sql\D\05_settlement_seed_preflight.sql"
+```
+
+**综合验收**：
+
+```sql
+SOURCE sql/00_verify_all.sql;
+```
+
+> `sql/D/04_membership_final_verify.sql` 只适用于“仅 D 核心种子”的阶段；执行 B 固定测试集后 `user`/`vehicle`/`promotion` 行数会超过 20，该脚本会按设计报 FAIL。全模块联调后请使用 `sql/00_verify_all.sql`。
 
 ### 7. 设置 Git 身份并同步代码
 
@@ -318,8 +474,40 @@ git push
 
 ```bash
 #简化版流程（部分）
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m venv .venv #创建venv虚拟环境
+.\. venv\Scripts\Activate.ps1 #进入venv虚拟环境
+pip install -r requirements.txt #下载requirements.txt中的依赖
+
+如果你pip了其他依赖，请执行：
+pip freeze > requirements.txt #将它们覆盖写入到 requirements.txt 文件中
+```
+
+```bash
+#简化版github合作流程
+git switch dev #切换至dev分支
+git pull origin dev #拉取最新代码
+git switch -c xxx(例如：koko) #创建并切换到你的新分支
+
+……进行开发
+
+git add . #添加修改
+git commit -m "feat:完成xxx功能的具体描述" #提交
+git push -u origin koko #推送到远程github
+
+通过pull request合并分支到dev上，
+写标题：例如 feat: 完成xxx功能。
+写描述：简单写两句改了什么，怎么测试的。
+选 Reviewer：选择你的队友或组长来审查代码。
+
+合并完成后，页面上会出现一个 "Delete branch" 按钮，点它，删除github上这个功能分支，保持仓库干净。
+
+回到你的电脑终端：
+git switch dev
+git pull origin dev
+
+git branch -d koko #删除该功能分支
+
+循环回第一步
+
 ```
 
