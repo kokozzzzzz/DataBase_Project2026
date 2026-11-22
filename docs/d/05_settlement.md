@@ -279,6 +279,16 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 
 DDL 完成后使用 `EXPLAIN ANALYZE` 记录复杂查询执行计划，确认没有对大表进行不必要的全表扫描。
 
+2026-11-22 已在 MySQL 8.0.46 使用正式种子完成 E01～E05：
+
+- 账期筛选使用 `idx_settlement_station_period`，结算明细关联使用 `idx_detail_statement_type_event`；
+- 基础订单明细使用 `idx_detail_statement_type_event`，订单、用户、车辆均为主键单行查找；
+- 跨期退款使用 `idx_detail_order_event`，退款、原明细和两期结算单均为主键查找；
+- 差异与双方确认分别使用 `idx_difference_statement_status_time` 和 `idx_confirmation_difference_party_id`；
+- 普通票和红字票分别使用 `idx_invoice_settlement_status_time` 和 `idx_invoice_original`。
+
+测试集仅有几十行，分组阶段出现临时表或小表扫描属于优化器的合理选择；关键过滤和关联路径均已命中既有索引，因此本阶段不新增重复索引。
+
 ## 11. 仍需确认但不阻塞建表的事项
 
 以下规则通过字段和参数保留扩展空间，不阻塞五张表建表：
@@ -298,4 +308,4 @@ DDL 完成后使用 `EXPLAIN ANALYZE` 记录复杂查询执行计划，确认没
 5. 已完成 3 个业务视图；V01～V04 全部 PASS，敏感字段未暴露。
 6. 已完成 `sp_generate_settlement_statement`；P01～P06 覆盖基础订单、幂等、跨期退款和回滚。
 7. 已生成五张表的正式测试数据；`SD01～SD07` 全部 PASS，各表均达到至少 20 行。
-8. 下一阶段补 5 条以上多表业务查询和执行计划，并实现 Python 持久层、差异确认/调整与开票事务服务。
+8. 已完成 6 条多表业务查询和 5 条 `EXPLAIN ANALYZE`；下一阶段实现 Python 持久层、差异确认/调整与开票事务服务。

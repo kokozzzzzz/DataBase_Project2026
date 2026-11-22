@@ -16,7 +16,7 @@ D同学
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
 | ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
-| ⑤ 结算与对账 | 结构、生成过程和正式测试数据已完成 | MySQL 8.0.46 实测 S01～S11、V01～V04、P01～P06、SD01～SD07 全部 PASS；五张表均达到至少 20 行 |
+| ⑤ 结算与对账 | 结构、生成过程、正式数据和复杂查询已完成 | MySQL 8.0.46 实测 S01～S11、V01～V04、P01～P06、SD01～SD07、Q01～Q07 和 E01～E05；五张表均达到至少 20 行 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
 
@@ -38,6 +38,8 @@ D同学
 | `sql/D/05_settlement_seed_preflight.sql` | ⑤ 测试数据前只读检查：现有 B 订单、费用分段、成功支付、退款及可结算订单规模 |
 | `sql/D/05_settlement_seed.sql` | ⑤ 正式联调种子：40 个账期、60 条明细、20 条差异、40 条确认和 40 条发票；由调用方控制提交 |
 | `sql/D/05_settlement_seed_verify.sql` | ⑤ 正式数据只读验收：规模、唯一性、双方确认、红字发票及财务汇总 `SD01～SD07` |
+| `sql/D/05_settlement_business_queries.sql` | ⑤ 六条连接至少 3 个关系的只读业务查询及 `Q07` 验收摘要 |
+| `sql/D/05_settlement_explain.sql` | ⑤ 五条关键查询的 `EXPLAIN ANALYZE` 执行计划 |
 | `docs/d/evidence/05_b_formal_seed_local_20261122.json` | MySQL 8.0.46 本机 B-FORMAL-v1 提交结果及实际订单编号证据 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
@@ -95,6 +97,8 @@ D同学
 | ⑤业务视图 | 3 个视图均为 `INVOKER`；字段数量 28/36/23，确认人姓名和纳税人识别号密文均未暴露 |
 | ⑤结算生成过程 | 11月2条基础订单应结16.64元；相同参数复用结算单；12月退款3.00元形成-2.21元调整；P01～P06全部PASS并回滚 |
 | ⑤正式测试数据 | 结算单 40、明细 60、差异 20、双方确认 40、发票 40；`SD01～SD07` 全部 PASS，净结算 288.60 元 |
+| ⑤多表业务查询 | Q01～Q06 全部执行成功且均连接至少 3 个关系；Q07 为 40/40/20/20/20，PASS |
+| ⑤执行计划 | E01～E05 均成功；账期、明细、订单追溯、差异确认和发票链路使用既有主键或复合索引，无需新增索引 |
 
 ## 6. 数据库实体
 
@@ -188,6 +192,8 @@ B-FORMAL-v1 已提交且 `DP03=40`、`DP06=20` 后，在仓库根目录生成并
 .\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed_preflight.sql
 .\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed.sql --commit
 .\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed_verify.sql
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_business_queries.sql
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_explain.sql
 ```
 
 `05_settlement_seed.sql` 只允许在五张结算表均为空时正式执行一次。不带 `--commit` 可用于预演并在连接关闭后回滚；确认预演统计正确后再带 `--commit` 持久化。
@@ -226,4 +232,4 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
 7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤ 五表、正式交易输入、负净结算升级、3 个视图、生成过程和正式测试数据已在 MySQL 8.0.46 验收；下一步实现差异确认、应用调整、开票与红冲的 Python 事务服务。
+8. ⑤ 五表、正式交易输入、负净结算升级、3 个视图、生成过程、正式数据、多表查询及执行计划已在 MySQL 8.0.46 验收；下一步实现差异确认、应用调整、开票与红冲的 Python 事务服务。
