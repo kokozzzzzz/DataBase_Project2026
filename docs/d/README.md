@@ -16,7 +16,7 @@ D同学
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
 | ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
-| ⑤ 结算与对账 | 5 张表已建并通过结构验收 | MySQL 8.0.46 实测 S01～S10 全部 PASS；5 主键、13 外键、7 唯一、20 CHECK、2 个生成列均符合定稿字典 |
+| ⑤ 结算与对账 | 5 张表已建，正式交易输入已就绪 | MySQL 8.0.46 实测 S01～S11 全部 PASS；B 固定集提供 40 笔足额支付订单和 20 笔次月退款；负净结算升级已通过 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
 
@@ -29,8 +29,10 @@ D同学
 | `docs/d/05_settlement.md` | ⑤ 结算与对账定稿设计、金额口径、状态流转、索引与实施计划 |
 | `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
 | `sql/D/05_settlement_schema.sql` | ⑤ 五张正式业务表 DDL，不含删除语句，依赖 B 的运营商、场站、订单、支付和退款表 |
+| `sql/D/05_settlement_upgrade_signed_payable.sql` | ⑤ 已有库升级：允许只有跨期退款的账期形成负净结算额，不删除业务数据 |
 | `sql/D/05_settlement_verify.sql` | ⑤ 表数量、字段、约束、外键、类型、生成列和引擎的只读验收脚本 |
 | `sql/D/05_settlement_seed_preflight.sql` | ⑤ 测试数据前只读检查：现有 B 订单、费用分段、成功支付、退款及可结算订单规模 |
+| `docs/d/evidence/05_b_formal_seed_local_20261122.json` | MySQL 8.0.46 本机 B-FORMAL-v1 提交结果及实际订单编号证据 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
@@ -82,7 +84,9 @@ D同学
 | ⑤核心 DDL | 5 张表创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci`，共 83 个字段 |
 | ⑤完整性约束 | 5 个主键、13 个外键、7 个唯一约束、20 个 CHECK，S01～S10 全部 PASS |
 | ⑤跨模块接口 | 6 个 B 外键、7 个 D 内部外键、所有编号类型及 2 个生成列均验收通过 |
-| ⑤初始数据状态 | 5 张新表均为 0 行，等待测试数据阶段 |
+| ⑤正式交易输入 | B-FORMAL-v1 已提交；40 笔可结算订单、80 条成功支付和 20 笔次月退款，DP03/DP06 均 PASS |
+| ⑤跨期退款约束 | 结算单净额允许为负；正数表示平台应付，负数表示运营商返还或结转；升级 U01/U02 与结构 S11 均 PASS |
+| ⑤初始数据状态 | 5 张结算表仍为 0 行，下一步实现生成过程、视图与正式测试数据 |
 
 ## 6. 数据库实体
 
@@ -163,7 +167,14 @@ B 的 `operator`、`station`、`charging_order`、`payment_record`、`refund_rec
 ```sql
 SOURCE sql/D/05_settlement_preflight.sql;       -- P01～P04 必须 PASS，P05 必须为空
 SOURCE sql/D/05_settlement_schema.sql;          -- 首次创建五张表，不可重复执行；本机已完成
-SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S10 已全部 PASS
+SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S11 已全部 PASS
+```
+
+已按旧版 DDL 建表的数据库需在生成结算数据前执行一次：
+
+```sql
+SOURCE sql/D/05_settlement_upgrade_signed_payable.sql; -- U01/U02 PASS；不可重复执行
+SOURCE sql/D/05_settlement_verify.sql;                  -- S01～S11 PASS
 ```
 
 > 执行 B 固定测试集后，`04_membership_final_verify.sql` 会因 `user`/`vehicle`/`promotion` 行数超过 20、B 测试用户无会员等级而按设计报 FAIL；该脚本只用于 D 核心种子阶段。全模块联调请使用仓库根目录的 `sql/00_verify_all.sql`。
@@ -193,4 +204,4 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
 7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤ 五表已在 MySQL 8.0.46 创建，S01～S10 全部 PASS；下一步准备每表至少 20 条测试数据及事务回滚测试。
+8. ⑤ 五表、正式交易输入和负净结算升级已在 MySQL 8.0.46 验收；下一步实现结算生成过程、3 个视图、每表至少 20 条测试数据及事务回滚测试。

@@ -31,11 +31,11 @@ CREATE TABLE settlement_statement (
     electricity_share_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '电费分成金额合计，元',
     service_share_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '服务费分成金额合计，元',
     platform_service_fee DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '平台服务费合计，元',
-    payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '最终应向运营商结算的金额，元',
+    payable_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '最终净结算金额，正数为平台应付、负数为运营商应返还或结转，元',
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/GENERATED/CONFIRMED/PAID/VOID',
     generated_at DATETIME NULL COMMENT '结算明细和汇总生成完成时间',
     confirmed_at DATETIME NULL COMMENT '结算单确认完成时间',
-    paid_at DATETIME NULL COMMENT '运营商结算付款完成时间',
+    paid_at DATETIME NULL COMMENT '正向付款或负向返还完成后的资金结清时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (settlement_id),
@@ -58,7 +58,8 @@ CREATE TABLE settlement_statement (
             AND platform_fee_rate BETWEEN 0 AND 1
             AND operator_discount_rate BETWEEN 0 AND 1
         ),
-    CONSTRAINT ck_settlement_totals_nonnegative
+    -- total_adjustment_amount 与 payable_amount 是有方向的净额，允许跨期退款账期为负。
+    CONSTRAINT ck_settlement_totals_valid
         CHECK (
             total_kwh >= 0
             AND total_electricity_fee >= 0
@@ -68,7 +69,6 @@ CREATE TABLE settlement_statement (
             AND electricity_share_amount >= 0
             AND service_share_amount >= 0
             AND platform_service_fee >= 0
-            AND payable_amount >= 0
         ),
     CONSTRAINT ck_settlement_status
         CHECK (status IN ('DRAFT', 'GENERATED', 'CONFIRMED', 'PAID', 'VOID')),

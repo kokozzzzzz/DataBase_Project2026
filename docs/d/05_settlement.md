@@ -117,6 +117,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 
 累计退款不得超过原订单成功支付金额，累计结算冲减不得超过原基础明细的应结金额。若教师或运营商合同给出其他规则，只替换退款冲减公式，不改变追溯结构。
 
+若退款发生账期没有新的正向订单，账期的 `payable_amount` 可以为负。负数表示运营商需要向平台返还，或经双方确认后结转到后续账期；不得为了通过非负约束而伪造正向调整。除 `total_adjustment_amount` 和 `payable_amount` 外，电量、原始费用、退款原额及分成金额等事实汇总仍必须非负。
+
 ## 7. 五张表的定稿结构
 
 ### 7.1 `settlement_statement`
@@ -133,6 +135,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 - 状态时间：`status`、`generated_at`、`confirmed_at`、`paid_at`、`created_at`、`updated_at`。
 
 状态：`DRAFT / GENERATED / CONFIRMED / PAID / VOID`。
+
+`payable_amount` 是有方向的净额：正数表示平台应付运营商，负数表示运营商应返还平台或结转下期。`PAID` 表示资金已按该方向结清，不限定资金只能从平台流向运营商。
 
 唯一约束：
 
@@ -205,7 +209,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 - `RED_LETTER` 发票必须关联同一结算单下已开具的普通发票；
 - 红字票开具后，原普通发票状态更新为 `RED_FLUSHED`；
 - 有效开票净额为“已开普通票金额 - 已开红字票金额”；
-- 有效开票净额不得小于 0，也不得超过结算单 `payable_amount`；
+- 有效开票净额不得小于 0；正净额结算单不得超过 `payable_amount`；
+- `payable_amount <= 0` 的结算单不得开具普通发票，应通过返还或后续账期结转完成结清；
 - 只有 `CONFIRMED` 或 `PAID` 结算单允许开票。
 
 ## 8. 状态流转与事务边界

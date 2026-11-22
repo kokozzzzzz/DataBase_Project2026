@@ -236,7 +236,18 @@ WHERE CONSTRAINT_SCHEMA = 'charging_platform'
       OR UPDATE_RULE <> 'RESTRICT'
   );
 
--- S11：首次建表后可查看行数；本查询不要求后续始终为空。
+-- S11：结算单净额必须允许为负，以支持只有跨期退款、没有正向订单的账期。
+SELECT
+    'S11 signed_payable_constraint' AS check_item,
+    COUNT(*) AS actual_value,
+    1 AS expected_value,
+    IF(COUNT(*) = 1, 'PASS', 'FAIL') AS result
+FROM information_schema.CHECK_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = 'charging_platform'
+  AND CONSTRAINT_NAME = 'ck_settlement_totals_valid'
+  AND CHECK_CLAUSE NOT LIKE '%payable_amount%';
+
+-- S12：首次建表后可查看行数；本查询不要求后续始终为空。
 SELECT 'settlement_statement' AS table_name, COUNT(*) AS row_count FROM settlement_statement
 UNION ALL SELECT 'settlement_detail', COUNT(*) FROM settlement_detail
 UNION ALL SELECT 'reconciliation_difference', COUNT(*) FROM reconciliation_difference
