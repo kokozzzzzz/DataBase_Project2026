@@ -16,7 +16,7 @@
 - 平台与运营商之间的结算对账
 - 预约排队、备件库存、公告通知等新增业务的跨模块协作
 
-**当前阶段（2026-11-21）**：处于Day 3收尾与Day 4联调。51张业务表已在MySQL8.0.46安装，B交易、C运维及跨模块关键流程实测通过；D⑤仍需完成结算业务与测试数据，最终全局图/统一字典、性能、备份恢复和答辩材料尚需收口。最新进度、已定规则、数据库升级和每人下一步统一看[本次集成与交接说明](docs/集成修正_2026-11-21/README.md)。历史阶段记录保留其当时版本与测试数量。
+**当前阶段（2026-11-22）**：处于 Day 4 联调收口。51 张业务表已在 MySQL 8.0.46 安装，A/B/C/D 结构与跨模块关键流程已联调；D⑤已完成五表、三视图、结算生成过程及正式测试数据，`SD01～SD07` 全部通过。后续重点为 D⑤ Python 事务服务、业务查询与执行计划，以及最终全局图、统一字典、备份恢复和答辩材料收口。集成规则与历史交接见[本次集成与交接说明](docs/集成修正_2026-11-21/README.md)。
 
 ## 业务范围
 
@@ -142,10 +142,12 @@
 | [⑤结算与对账 DDL](sql/D/05_settlement_schema.sql) | 五张正式业务表、跨 B 外键、状态约束、生成列和索引 |
 | [⑤结算与对账结构验收](sql/D/05_settlement_verify.sql) | 表、字段、约束、外键、类型、生成列和引擎的只读检查 |
 | [⑤测试数据依赖检查](sql/D/05_settlement_seed_preflight.sql) | 只读统计现有 B 订单、费用分段、成功支付、退款和可结算订单规模 |
+| [⑤正式测试数据](sql/D/05_settlement_seed.sql) | 基于 B-FORMAL-v1 生成 40 个账期、60 条结算明细及对账确认和发票数据；通过 `--commit` 控制提交 |
+| [⑤正式数据验收](sql/D/05_settlement_seed_verify.sql) | 只读检查五表规模、跨期退款、双方确认、红字发票和财务汇总，`SD01～SD07` |
 | [一键安装脚本](sql/00_install_all.sql) | 空库按 D→B→A→D 结算的依赖顺序安装结构，带空库守卫 |
 | [A 安装前置检查](sql/A/00_preflight.sql) | 只读检查 D/B 依赖与 A 对象数量，定位 `07_verify.sql` 全 0 的原因 |
 | [A 结构补装](sql/A/00_install_a.sql) | 已有 D/B、仅缺 A 时只安装 A 的 01～04，带重复建表守卫 |
-| [综合验收](sql/00_verify_all.sql) | A/B/D 结构、D 结算结构与 D 结算数据就绪度 |
+| [综合验收](sql/00_verify_all.sql) | A/B/C/D 结构、D 结算对象、交易输入与正式结算数据综合验收 |
 | [跨模块安装与 D 结算数据链复验](docs/跨模块安装与D结算数据链复验_2026-11-21.md) | 8.0.46 空库/补装 A 两条路径、B 固定交易集与 D DP03/DP06 实测记录 |
 | [A 模块开发说明](docs/a/README.md) | ⑥预约排队、⑧公告通知的状态、交付物、接口、运行方式和实测结果 |
 | [⑥预约排队设计说明](docs/a/06_reservation_queue.md) | ⑥需求、E-R、3NF、DDL、并发控制、视图、查询与测试 |
@@ -433,6 +435,15 @@ SOURCE sql/00_seed_all.sql;
 ```powershell
 cmd /c "mysql -h127.0.0.1 -P3306 -uroot -p --default-character-set=utf8mb4 charging_platform < sql\D\05_settlement_seed_preflight.sql"
 ```
+
+**生成 D⑤正式结算数据**（仅限五张结算表为空时执行一次）：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed.sql --commit
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed_verify.sql
+```
+
+预期生成 40 个结算单、60 条结算明细、20 条差异、40 条双方确认和 40 条发票记录；`SD01～SD07` 全部 `PASS`，净结算总额为 `288.60`。
 
 **综合验收**：
 

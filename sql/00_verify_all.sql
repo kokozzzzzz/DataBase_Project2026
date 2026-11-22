@@ -1,6 +1,8 @@
--- 全组只读综合验收：A/B/D 结构、D 结算结构、D 结算数据就绪度
+-- 全组只读综合验收：A/B/C/D 结构、D 结算对象、交易输入和正式结算数据
 --
--- 前提：已执行 sql/00_install_all.sql；如需行数验收，再执行 sql/00_seed_all.sql。
+-- 前提：已执行 sql/00_install_all.sql 和所需模块种子。
+-- D 结算数据验收还要求先提交 B-FORMAL-v1，再使用 --commit 执行
+-- sql/D/05_settlement_seed.sql；未生成正式数据时 SD01～SD07 将按设计显示 FAIL。
 -- 本脚本只查询，不创建、修改或删除任何对象和数据。
 --
 -- 运行方式（必须在仓库根目录，SOURCE 路径按客户端当前目录解析）：
@@ -49,6 +51,9 @@ WHERE ROUTINE_SCHEMA = DATABASE()
 
 SELECT '=== D 05 settlement data readiness ===' AS section;
 SOURCE sql/D/05_settlement_seed_preflight.sql;
+
+SELECT '=== D 05 formal settlement data ===' AS section;
+SOURCE sql/D/05_settlement_seed_verify.sql;
 
 SELECT '=== C 03/07 structure and integrity ===' AS section;
 SOURCE sql/C/07_verify.sql;
