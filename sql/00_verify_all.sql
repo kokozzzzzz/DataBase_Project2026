@@ -34,6 +34,7 @@ SOURCE sql/D/04_membership_procedure_verify.sql;
 
 SELECT '=== D 05 settlement structure ===' AS section;
 SOURCE sql/D/05_settlement_verify.sql;
+SOURCE sql/D/05_settlement_views_verify.sql;
 
 SELECT '=== D 05 settlement data readiness ===' AS section;
 SOURCE sql/D/05_settlement_seed_preflight.sql;
