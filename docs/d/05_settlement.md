@@ -234,6 +234,13 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 4. 开票：锁定结算单及已有发票，校验累计净开票金额后写入新发票。
 5. 红冲：锁定原票，创建红字票并更新原票状态，两步必须同一事务完成。
 
+`app/services/settlement_service.py` 已实现前两项对账处理能力：
+
+- `confirm_reconciliation_difference` 锁定差异行后追加确认历史，按双方最新结论把差异更新为 `PENDING / CONFIRMED / REJECTED`；
+- `apply_reconciliation_adjustment` 再次校验双方最新结论均为 `AGREE`，要求目标结算单与源差异属于同一运营商和场站，并把调整写入后续 `GENERATED` 半开账期；
+- 服务本身不提交事务，由调用方统一 `COMMIT` 或 `ROLLBACK`；固定锁顺序为源差异及确认历史→目标结算单；
+- 真实数据库演示在事务内生成 `-0.50` 的 `OTHER_ADJUSTMENT` 并将差异更新为 `RESOLVED`，随后统一回滚，正式数据未改变。
+
 ## 9. 视图、过程和查询实现
 
 课程任务书要求⑤至少提供 3 个实用视图和 1 个存储过程或触发器：
@@ -308,4 +315,4 @@ DDL 完成后使用 `EXPLAIN ANALYZE` 记录复杂查询执行计划，确认没
 5. 已完成 3 个业务视图；V01～V04 全部 PASS，敏感字段未暴露。
 6. 已完成 `sp_generate_settlement_statement`；P01～P06 覆盖基础订单、幂等、跨期退款和回滚。
 7. 已生成五张表的正式测试数据；`SD01～SD07` 全部 PASS，各表均达到至少 20 行。
-8. 已完成 6 条多表业务查询和 5 条 `EXPLAIN ANALYZE`；下一阶段实现 Python 持久层、差异确认/调整与开票事务服务。
+8. 已完成 6 条多表查询、5 条 `EXPLAIN ANALYZE`、只读持久层及差异确认/调整事务服务；下一阶段实现开票与红冲事务服务。
