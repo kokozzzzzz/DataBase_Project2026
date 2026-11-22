@@ -71,6 +71,7 @@ SOURCE sql/D/04_membership_views.sql;
 SOURCE sql/D/04_membership_procedure.sql;
 SOURCE sql/D/05_settlement_schema.sql;
 SOURCE sql/D/05_settlement_views.sql;
+SOURCE sql/D/05_settlement_procedure.sql;
 
 -- C ③⑦结构，依赖B设备主数据；过程参与调用方事务。
 SOURCE sql/C/01_schema.sql;

@@ -36,6 +36,17 @@ SELECT '=== D 05 settlement structure ===' AS section;
 SOURCE sql/D/05_settlement_verify.sql;
 SOURCE sql/D/05_settlement_views_verify.sql;
 
+SELECT 'D settlement procedure' AS item,
+       COUNT(*) AS actual_value,
+       1 AS expected_value,
+       IF(COUNT(*) = 1, 'PASS', 'FAIL') AS result
+FROM information_schema.ROUTINES
+WHERE ROUTINE_SCHEMA = DATABASE()
+  AND ROUTINE_TYPE = 'PROCEDURE'
+  AND ROUTINE_NAME = 'sp_generate_settlement_statement'
+  AND SECURITY_TYPE = 'INVOKER'
+  AND SQL_DATA_ACCESS = 'MODIFIES SQL DATA';
+
 SELECT '=== D 05 settlement data readiness ===' AS section;
 SOURCE sql/D/05_settlement_seed_preflight.sql;
 

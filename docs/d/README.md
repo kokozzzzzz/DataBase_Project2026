@@ -16,7 +16,7 @@ D同学
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
 | ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
-| ⑤ 结算与对账 | 5 张表和 3 个视图已建，正式交易输入已就绪 | MySQL 8.0.46 实测 S01～S11、V01～V04 全部 PASS；B 固定集提供 40 笔足额支付订单和 20 笔次月退款 |
+| ⑤ 结算与对账 | 5 张表、3 个视图和生成过程已建，正式交易输入已就绪 | MySQL 8.0.46 实测 S01～S11、V01～V04、P01～P06 全部 PASS；B 固定集提供 40 笔足额支付订单和 20 笔次月退款 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
 
@@ -33,6 +33,8 @@ D同学
 | `sql/D/05_settlement_verify.sql` | ⑤ 表数量、字段、约束、外键、类型、生成列和引擎的只读验收脚本 |
 | `sql/D/05_settlement_views.sql` | ⑤ 结算单汇总、逐订单结算、待处理差异三个 `SQL SECURITY INVOKER` 视图 |
 | `sql/D/05_settlement_views_verify.sql` | ⑤ 视图数量、字段、调用者权限和敏感字段暴露检查 |
+| `sql/D/05_settlement_procedure.sql` | ⑤ 生成账期结算单、足额支付基础明细和跨期退款调整的事务内存储过程 |
+| `sql/D/05_settlement_procedure_verify.sql` | ⑤ 过程元数据、幂等生成、负向退款调整、视图读取和统一回滚验收 |
 | `sql/D/05_settlement_seed_preflight.sql` | ⑤ 测试数据前只读检查：现有 B 订单、费用分段、成功支付、退款及可结算订单规模 |
 | `docs/d/evidence/05_b_formal_seed_local_20261122.json` | MySQL 8.0.46 本机 B-FORMAL-v1 提交结果及实际订单编号证据 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
@@ -89,7 +91,8 @@ D同学
 | ⑤正式交易输入 | B-FORMAL-v1 已提交；40 笔可结算订单、80 条成功支付和 20 笔次月退款，DP03/DP06 均 PASS |
 | ⑤跨期退款约束 | 结算单净额允许为负；正数表示平台应付，负数表示运营商返还或结转；升级 U01/U02 与结构 S11 均 PASS |
 | ⑤业务视图 | 3 个视图均为 `INVOKER`；字段数量 28/36/23，确认人姓名和纳税人识别号密文均未暴露 |
-| ⑤初始数据状态 | 5 张结算表仍为 0 行，下一步实现生成过程与正式测试数据 |
+| ⑤结算生成过程 | 11月2条基础订单应结16.64元；相同参数复用结算单；12月退款3.00元形成-2.21元调整；P01～P06全部PASS并回滚 |
+| ⑤初始数据状态 | 5 张结算表仍为 0 行，下一步生成正式测试数据 |
 
 ## 6. 数据库实体
 
@@ -173,6 +176,8 @@ SOURCE sql/D/05_settlement_schema.sql;          -- 首次创建五张表，不�
 SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S11 已全部 PASS
 SOURCE sql/D/05_settlement_views.sql;           -- 可重复执行，创建或更新 3 个 INVOKER 视图
 SOURCE sql/D/05_settlement_views_verify.sql;    -- V01～V04 PASS，并显示当前视图行数
+SOURCE sql/D/05_settlement_procedure.sql;       -- 创建或更新结算生成过程，不自动提交业务事务
+SOURCE sql/D/05_settlement_procedure_verify.sql; -- P01～P06 PASS，测试数据最终 ROLLBACK
 ```
 
 已按旧版 DDL 建表的数据库需在生成结算数据前执行一次：
@@ -209,4 +214,4 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
 7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤ 五表、正式交易输入、负净结算升级和 3 个视图已在 MySQL 8.0.46 验收；下一步实现结算生成过程、每表至少 20 条测试数据及事务回滚测试。
+8. ⑤ 五表、正式交易输入、负净结算升级、3 个视图和生成过程已在 MySQL 8.0.46 验收；下一步准备每表至少 20 条正式测试数据。
