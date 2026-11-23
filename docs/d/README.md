@@ -52,6 +52,7 @@ D同学
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
+| `sql/D/04_membership_integration_data_verify.sql` | B-FORMAL-v1 生成的活动场站、优惠券及核销数据只读验收 `DI01～DI06` |
 | `sql/D/04_membership_verify.sql` | 只读 DDL 验证脚本 |
 | `sql/D/04_membership_seed_core.sql` | 9 张核心表各 20 条虚构测试数据，需手动 COMMIT |
 | `sql/D/04_membership_constraint_tests.sql` | 唯一、非负、外键、时间、状态等约束测试，测试后统一 ROLLBACK |
@@ -95,6 +96,7 @@ D同学
 | Python 单元测试 | 全仓 121 passed（⑤新增 20 项持久层、对账调整及发票事务测试） |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
+| ④跨模块正式数据 | 活动场站、优惠券、券核销各 20 行；用户、订单、场站、金额和时间一致性 `DI01～DI06` 全部 PASS |
 | B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
 | 优惠券事务 | 发券、锁券、订单优惠、成功支付和核销均 PASS；回滚后券、订单、运营商和支付记录均为 0 |
 | ⑤核心 DDL | 5 张表创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci`，共 83 个字段 |
@@ -243,5 +245,5 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 4. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
-7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
+7. 3 张跨模块表已由 B-FORMAL-v1 各生成 20 条正式联调数据，`DI01～DI06` 全部 PASS。
 8. ⑤差异确认、后续账期调整、普通开票和红字冲销事务服务已通过 20 项单元测试及两条真实数据库回滚演示；⑤核心开发完成。

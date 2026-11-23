@@ -81,6 +81,7 @@ def test_list_user_profiles_uses_parameters() -> None:
     assert actual_rows == expected_rows
     assert cursor.parameters == ["ACTIVE", 5, 10]
     assert "WHERE u.user_status = %s" in cursor.sql
+    assert "LEFT JOIN membership_level AS ml" in cursor.sql
     assert "LIMIT %s OFFSET %s" in cursor.sql
 
 

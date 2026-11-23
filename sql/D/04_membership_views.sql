@@ -6,6 +6,7 @@ USE charging_platform;
 SET NAMES utf8mb4;
 
 -- V01：用户会员档案。
+-- level_id 允许为空；LEFT JOIN 保证尚未加入会员体系的普通用户仍可查询。
 -- 不暴露手机号密文、手机号摘要等认证/检索字段。
 CREATE OR REPLACE
 SQL SECURITY INVOKER
@@ -22,7 +23,7 @@ SELECT
     u.balance,
     COUNT(v.vehicle_id) AS active_vehicle_count
 FROM `user` AS u
-JOIN membership_level AS ml
+LEFT JOIN membership_level AS ml
     ON ml.level_id = u.level_id
 LEFT JOIN vehicle AS v
     ON v.user_id = u.user_id

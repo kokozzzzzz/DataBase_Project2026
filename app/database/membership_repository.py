@@ -74,7 +74,7 @@ def list_user_profiles(
             u.balance,
             COUNT(v.vehicle_id) AS active_vehicle_count
         FROM `user` AS u
-        JOIN membership_level AS ml
+        LEFT JOIN membership_level AS ml
             ON ml.level_id = u.level_id
         LEFT JOIN vehicle AS v
             ON v.user_id = u.user_id
