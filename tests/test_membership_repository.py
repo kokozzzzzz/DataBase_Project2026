@@ -11,9 +11,12 @@ import pytest
 from app.database.membership_repository import (
     fetch_fleet_monthly_bill_summary,
     fetch_database_health,
+    fetch_promotion_redemption_statistics,
     fetch_quota_usage,
     list_available_global_promotions,
     list_fleet_monthly_charging_details,
+    list_target_users,
+    list_user_vehicles,
     list_user_profiles,
 )
 
@@ -119,6 +122,65 @@ def test_list_available_global_promotions_uses_time_and_amount_parameters() -> N
     assert cursor.parameters == [query_time, query_time, order_amount]
     assert "applicability_scope = 'ALL'" in cursor.sql
     assert "minimum_spend <= %s" in cursor.sql
+
+
+def test_list_user_vehicles_does_not_expose_plate_fields() -> None:
+    cursor = FakeCursor([{"vehicle_id": 20001, "model": "测试车型"}])
+    connection = FakeConnection(cursor)
+
+    rows = list_user_vehicles(  # type: ignore[arg-type]
+        connection,
+        user_id=10001,
+        vehicle_status="ACTIVE",
+        limit=10,
+        offset=5,
+    )
+
+    assert rows == [{"vehicle_id": 20001, "model": "测试车型"}]
+    assert cursor.parameters == [10001, "ACTIVE", 10, 5]
+    assert "plate_ciphertext" not in cursor.sql
+    assert "plate_hash" not in cursor.sql
+
+
+def test_list_target_users_uses_level_and_half_open_registration_period() -> None:
+    cursor = FakeCursor([{"user_id": 10001, "level_id": 1}])
+    connection = FakeConnection(cursor)
+    period_start = datetime(2026, 11, 1)
+    period_end = datetime(2026, 12, 1)
+
+    rows = list_target_users(  # type: ignore[arg-type]
+        connection,
+        level_id=1,
+        registered_start=period_start,
+        registered_end=period_end,
+        limit=50,
+    )
+
+    assert rows == [{"user_id": 10001, "level_id": 1}]
+    assert cursor.parameters == [1, period_start, period_end, 50, 0]
+    assert "u.real_name_status = 'VERIFIED'" in cursor.sql
+    assert "u.registered_at >= %s" in cursor.sql
+    assert "u.registered_at < %s" in cursor.sql
+
+
+def test_fetch_promotion_redemption_statistics_is_parameterized() -> None:
+    expected = {
+        "promotion_id": 40001,
+        "issued_count": 20,
+        "redeemed_count": 10,
+        "redemption_rate": Decimal("0.5000"),
+    }
+    cursor = FakeCursor([expected])
+
+    row = fetch_promotion_redemption_statistics(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        promotion_id=40001,
+    )
+
+    assert row == expected
+    assert cursor.parameters == [40001]
+    assert "COUNT(DISTINCT c.coupon_id)" in cursor.sql
+    assert "COUNT(DISTINCT cr.redemption_id)" in cursor.sql
 
 
 def test_list_fleet_monthly_details_aggregates_payments_before_join() -> None:

@@ -35,7 +35,7 @@
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-当前基线：`127 passed`。
+当前基线：`142 passed`。
 
 ## 4. 真实数据库回滚演示
 
@@ -45,12 +45,13 @@
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_monthly_demo
+.\.venv\Scripts\python.exe -m app.run_customer_coupon_demo
 .\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_settlement_adjustment_demo
 .\.venv\Scripts\python.exe -m app.run_settlement_invoice_demo
 ```
 
-每个入口的“事务内验证”和“回滚后验证”均应为 `PASS`。车队月结演示还应显示至少 1 笔订单，且额度使用量与月结应付金额一致。
+每个入口的“事务内验证”和“回滚后验证”均应为 `PASS`。车队月结演示还应显示至少 1 笔订单，且额度使用量与月结应付金额一致；用户运营演示应显示 3 组注册绑车、1 张新人券和 2 张批量券。
 
 ## 5. 答辩建议演示顺序
 
@@ -65,6 +66,6 @@
 
 - SQL 综合验收没有 `FAIL`；
 - 全仓单元测试全部通过；
-- 六个真实数据库事务演示全部通过且回滚后无残留；
+- 七个真实数据库事务演示全部通过且回滚后无残留；
 - `git diff --check` 无输出，工作区只包含本阶段预期文件；
 - PR 目标为 `dev`，不直接修改 `main`，未经确认不合并。

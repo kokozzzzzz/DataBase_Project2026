@@ -133,6 +133,147 @@ def list_available_global_promotions(
         return list(cursor.fetchall())
 
 
+def list_user_vehicles(
+    connection: Connection,
+    *,
+    user_id: int,
+    vehicle_status: str | None = "ACTIVE",
+    limit: int = 20,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """分页查询用户车辆；不返回车牌密文或摘要。"""
+
+    _validate_positive_id(user_id, field_name="user_id")
+    if vehicle_status is not None and vehicle_status not in {"ACTIVE", "DISABLED"}:
+        raise ValueError(f"不支持的车辆状态：{vehicle_status}")
+    _validate_pagination(limit=limit, offset=offset)
+
+    status_filter = ""
+    parameters: list[Any] = [user_id]
+    if vehicle_status is not None:
+        status_filter = "AND v.vehicle_status = %s"
+        parameters.append(vehicle_status)
+
+    sql = f"""
+        SELECT
+            v.vehicle_id,
+            v.user_id,
+            v.model,
+            v.battery_capacity_kwh,
+            v.max_charging_power_kw,
+            v.fast_charge_supported,
+            v.vehicle_status,
+            v.created_at,
+            v.updated_at
+        FROM vehicle AS v
+        WHERE v.user_id = %s
+          {status_filter}
+        ORDER BY v.vehicle_id
+        LIMIT %s OFFSET %s
+    """
+    parameters.extend((limit, offset))
+    with connection.cursor() as cursor:
+        cursor.execute(sql, parameters)
+        return list(cursor.fetchall())
+
+
+def list_target_users(
+    connection: Connection,
+    *,
+    level_id: int | None = None,
+    registered_start: datetime | None = None,
+    registered_end: datetime | None = None,
+    require_verified: bool = True,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """按会员等级和注册时段筛选定向发券用户。"""
+
+    if level_id is not None:
+        _validate_positive_id(level_id, field_name="level_id")
+    if registered_start is not None and registered_end is not None:
+        _validate_period(
+            period_start=registered_start,
+            period_end=registered_end,
+        )
+    _validate_pagination(limit=limit, offset=offset)
+
+    conditions = ["u.user_status = 'ACTIVE'"]
+    parameters: list[Any] = []
+    if require_verified:
+        conditions.append("u.real_name_status = 'VERIFIED'")
+    if level_id is not None:
+        conditions.append("u.level_id = %s")
+        parameters.append(level_id)
+    if registered_start is not None:
+        conditions.append("u.registered_at >= %s")
+        parameters.append(registered_start)
+    if registered_end is not None:
+        conditions.append("u.registered_at < %s")
+        parameters.append(registered_end)
+
+    sql = f"""
+        SELECT
+            u.user_id,
+            u.real_name,
+            u.real_name_status,
+            u.registered_at,
+            u.level_id,
+            ml.level_code,
+            ml.level_name
+        FROM `user` AS u
+        LEFT JOIN membership_level AS ml
+            ON ml.level_id = u.level_id
+        WHERE {' AND '.join(conditions)}
+        ORDER BY u.registered_at, u.user_id
+        LIMIT %s OFFSET %s
+    """
+    parameters.extend((limit, offset))
+    with connection.cursor() as cursor:
+        cursor.execute(sql, parameters)
+        return list(cursor.fetchall())
+
+
+def fetch_promotion_redemption_statistics(
+    connection: Connection,
+    *,
+    promotion_id: int,
+) -> dict[str, Any]:
+    """统计活动发券量、核销量、核销率和实际优惠金额。"""
+
+    _validate_positive_id(promotion_id, field_name="promotion_id")
+    sql = """
+        SELECT
+            p.promotion_id,
+            p.promotion_name,
+            COUNT(DISTINCT c.coupon_id) AS issued_count,
+            COUNT(DISTINCT cr.redemption_id) AS redeemed_count,
+            CASE
+                WHEN COUNT(DISTINCT c.coupon_id) = 0 THEN 0.0000
+                ELSE ROUND(
+                    COUNT(DISTINCT cr.redemption_id)
+                    / COUNT(DISTINCT c.coupon_id),
+                    4
+                )
+            END AS redemption_rate,
+            COALESCE(SUM(cr.discount_amount), 0.00) AS total_discount_amount
+        FROM promotion AS p
+        LEFT JOIN coupon AS c
+            ON c.promotion_id = p.promotion_id
+        LEFT JOIN coupon_redemption AS cr
+            ON cr.coupon_id = c.coupon_id
+        WHERE p.promotion_id = %s
+        GROUP BY p.promotion_id, p.promotion_name
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (promotion_id,))
+        row = cursor.fetchone()
+
+    if row is None:
+        raise ValueError(f"优惠活动 {promotion_id} 不存在。")
+    return row
+
+
 def list_fleet_monthly_charging_details(
     connection: Connection,
     *,

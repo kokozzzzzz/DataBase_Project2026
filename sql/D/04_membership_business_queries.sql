@@ -417,3 +417,50 @@ FROM fleet_quota_record AS qr
 LEFT JOIN aggregated_usage AS au
     ON au.quota_record_id = qr.quota_record_id
 ORDER BY qr.period_start DESC, qr.quota_record_id;
+
+-- Q13：按会员等级、实名状态和注册时段筛选定向发券人群。
+-- 手机号密文和摘要不进入运营查询结果。
+SET @target_level_id = 1;
+SET @registered_start = TIMESTAMP('2026-11-01 00:00:00');
+SET @registered_end = TIMESTAMP('2026-12-01 00:00:00');
+
+SELECT
+    u.user_id,
+    u.real_name,
+    u.real_name_status,
+    u.registered_at,
+    ml.level_code,
+    ml.level_name
+FROM `user` AS u
+LEFT JOIN membership_level AS ml
+    ON ml.level_id = u.level_id
+WHERE u.user_status = 'ACTIVE'
+  AND u.real_name_status = 'VERIFIED'
+  AND u.level_id = @target_level_id
+  AND u.registered_at >= @registered_start
+  AND u.registered_at < @registered_end
+ORDER BY u.registered_at, u.user_id;
+
+-- Q14：优惠活动发放量、核销量、核销率和实际优惠金额。
+-- 使用DISTINCT保证统计不会因后续扩展其他一对多关系而重复计数。
+SELECT
+    p.promotion_id,
+    p.promotion_name,
+    COUNT(DISTINCT c.coupon_id) AS issued_count,
+    COUNT(DISTINCT cr.redemption_id) AS redeemed_count,
+    CASE
+        WHEN COUNT(DISTINCT c.coupon_id) = 0 THEN 0.0000
+        ELSE ROUND(
+            COUNT(DISTINCT cr.redemption_id)
+            / COUNT(DISTINCT c.coupon_id),
+            4
+        )
+    END AS redemption_rate,
+    COALESCE(SUM(cr.discount_amount), 0.00) AS total_discount_amount
+FROM promotion AS p
+LEFT JOIN coupon AS c
+    ON c.promotion_id = p.promotion_id
+LEFT JOIN coupon_redemption AS cr
+    ON cr.coupon_id = c.coupon_id
+GROUP BY p.promotion_id, p.promotion_name
+ORDER BY p.promotion_id;

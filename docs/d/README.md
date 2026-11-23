@@ -58,7 +58,7 @@ D同学
 | `sql/D/04_membership_verify.sql` | 只读 DDL 验证脚本 |
 | `sql/D/04_membership_seed_core.sql` | 9 张核心表各 20 条虚构测试数据，需手动 COMMIT |
 | `sql/D/04_membership_constraint_tests.sql` | 唯一、非负、外键、时间、状态等约束测试，测试后统一 ROLLBACK |
-| `sql/D/04_membership_business_queries.sql` | 9 条核心业务只读查询与验收摘要 |
+| `sql/D/04_membership_business_queries.sql` | 14 条只读业务查询，含车队月结、三级额度、目标人群和活动核销率 |
 | `sql/D/04_membership_views.sql` | 3 个核心业务视图，使用调用者权限且不暴露敏感检索字段 |
 | `sql/D/04_membership_views_verify.sql` | 视图数量、敏感字段和结果行数的只读验收 |
 | `sql/D/04_membership_procedure.sql` | 只读优惠试算存储过程，覆盖两类优惠、门槛和封顶 |
@@ -71,6 +71,9 @@ D同学
 | `app/run_fleet_monthly_demo.py` | 使用正式订单临时建立车队关系，验证月结与额度后统一回滚 |
 | `app/services/promotion_service.py` | 固定减免、百分比折扣与最优活动计算服务 |
 | `app/services/coupon_service.py` | 优惠券发放、锁定、释放和成功支付核销事务服务 |
+| `app/services/customer_service.py` | 注册实名绑车、用户/车辆逻辑CRUD和用户关闭事务服务 |
+| `app/services/targeted_coupon_service.py` | 活动与用户行锁、总量/限领校验及 `executemany` 批量发券 |
+| `app/run_customer_coupon_demo.py` | 注册绑车、新人券、两人批量发券、逻辑关闭和统一回滚演示 |
 | `app/run_membership_demo.py` | 连接与持久层演示入口 |
 | `app/run_membership_transaction_demo.py` | 真实数据库事务回滚演示入口 |
 | `app/run_fleet_transaction_demo.py` | 真实数据库调车事务回滚演示入口 |
@@ -90,7 +93,7 @@ D同学
 | ID 类型 | 19 个主外键 ID 字段均为 `BIGINT UNSIGNED` |
 | 测试数据 | 9 张核心表各 20 条，共 180 条，已 COMMIT |
 | 约束与回滚 | T01～T08 全部 PASS，回滚后各表仍为 20 条 |
-| 核心业务查询 | Q01～Q09 执行成功；车辆有效车队冲突为 0，会员当前等级与最新历史全部 MATCH |
+| 核心业务查询 | Q01～Q14 执行成功；覆盖会员、车辆、车队月结、额度、人群筛选和核销率 |
 | Python 真实连接 | MySQL 8.0.46 / `charging_platform` / 会话时区 `+08:00` / 核心表 9/9 |
 | 会员等级事务 | 事务内用户等级和历史同时变化，ROLLBACK 后恢复原值，PASS |
 | 车队车辆事务 | 事务内退出 60001、加入 60002 且仅一条 ACTIVE；ROLLBACK 后恢复 60001，PASS |
@@ -98,7 +101,8 @@ D同学
 | 优惠计算 | 100 元订单匹配 20 个全场活动；最优活动 40019，优惠 24 元、实付 76 元 |
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
-| Python 单元测试 | 全仓 127 passed（包含车队月结明细、汇总和三级额度使用量持久层测试） |
+| Python 单元测试 | 全仓 142 passed（包含车队月结、用户车辆逻辑CRUD、目标筛选和批量发券测试） |
+| 用户运营事务 | 3组注册实名绑车、1张新人券、2张批量定向券、资料更新和逻辑关闭均PASS；回滚后用户、车辆、券均为0 |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
 | ④跨模块正式数据 | 活动场站、优惠券、券核销各 20 行；用户、订单、场站、金额和时间一致性 `DI01～DI06` 全部 PASS |
@@ -232,6 +236,8 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_demo
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_monthly_demo
+.\.venv\Scripts\python.exe -m app.run_customer_coupon_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
 .\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_settlement_adjustment_demo
