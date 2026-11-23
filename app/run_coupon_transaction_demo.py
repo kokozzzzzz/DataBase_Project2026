@@ -14,6 +14,7 @@ from app.services.coupon_service import (
     issue_coupon,
     lock_coupon_for_order,
     redeem_coupon_for_order,
+    reissue_coupon_after_full_refund,
 )
 
 
@@ -163,14 +164,19 @@ def _rollback_counts(
     connection: pymysql.connections.Connection,
     *,
     coupon_code: str,
+    compensation_code: str,
     order_id: int,
     operator_name: str,
     trade_ref: str,
 ) -> dict[str, int]:
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT COUNT(*) AS row_count FROM coupon WHERE coupon_code = %s",
-            (coupon_code,),
+            """
+            SELECT COUNT(*) AS row_count
+            FROM coupon
+            WHERE coupon_code IN (%s, %s)
+            """,
+            (coupon_code, compensation_code),
         )
         coupon_count = int(cursor.fetchone()["row_count"])
 
@@ -187,21 +193,30 @@ def _rollback_counts(
         operator_count = int(cursor.fetchone()["row_count"])
 
         cursor.execute(
-            "SELECT COUNT(*) AS row_count FROM payment_record WHERE trade_ref = %s",
+            """
+            SELECT
+                COUNT(DISTINCT pr.payment_id) AS payment_count,
+                COUNT(DISTINCT rr.refund_id) AS refund_count
+            FROM payment_record AS pr
+            LEFT JOIN refund_record AS rr
+              ON rr.payment_id = pr.payment_id
+            WHERE pr.trade_ref = %s
+            """,
             (trade_ref,),
         )
-        payment_count = int(cursor.fetchone()["row_count"])
+        fund_counts = cursor.fetchone()
 
     return {
         "coupon": coupon_count,
         "order": order_count,
         "operator": operator_count,
-        "payment": payment_count,
+        "payment": int(fund_counts["payment_count"]),
+        "refund": int(fund_counts["refund_count"]),
     }
 
 
 def main() -> int:
-    """完成发券→锁券→成功支付→核销，并验证整体回滚。"""
+    """完成发券、核销、全额退款补发，并验证整体回滚。"""
 
     suffix = uuid4().hex[:12]
     coupon_code = f"COUPON-DEMO-{suffix}"
@@ -242,11 +257,29 @@ def main() -> int:
                             locked["payable_amount"],
                         ),
                     )
+                    payment_id = cursor.lastrowid
 
                 redeemed = redeem_coupon_for_order(
                     connection,
                     coupon_id=coupon_id,
                     order_id=order_id,
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO refund_record (
+                            payment_id, refund_ref, amount, reason
+                        ) VALUES (%s, %s, %s, '课程设计全额退款返券演示')
+                        """,
+                        (
+                            payment_id,
+                            f"COUPON-REFUND-{suffix}",
+                            locked["payable_amount"],
+                        ),
+                    )
+                compensation = reissue_coupon_after_full_refund(
+                    connection,
+                    coupon_id=coupon_id,
                 )
                 state = _transaction_state(
                     connection,
@@ -264,6 +297,9 @@ def main() -> int:
                     and order["discount_amount"] == locked["discount_amount"]
                     and state["redemption_count"] == 1
                     and redeemed["discount_amount"] == locked["discount_amount"]
+                    and compensation["status"] == "AVAILABLE"
+                    and compensation["refunded_amount"] == locked["payable_amount"]
+                    and compensation["reused"] is False
                 )
 
                 print(
@@ -273,6 +309,7 @@ def main() -> int:
                     f"优惠={locked['discount_amount']}，"
                     f"实付={locked['payable_amount']}，"
                     f"核销记录={state['redemption_count']} 条，"
+                    f"全额退款补发={compensation['coupon_code']}，"
                     f"结果={'PASS' if transaction_passed else 'FAIL'}"
                 )
             finally:
@@ -284,6 +321,7 @@ def main() -> int:
             counts = _rollback_counts(
                 connection,
                 coupon_code=coupon_code,
+                compensation_code=f"REFUND-{coupon_id}",
                 order_id=int(fixture["order_id"]),
                 operator_name=str(fixture["operator_name"]),
                 trade_ref=str(fixture["trade_ref"]),
@@ -306,6 +344,7 @@ def main() -> int:
         f"订单={counts['order']} 条，"
         f"运营商={counts['operator']} 条，"
         f"支付记录={counts['payment']} 条，"
+        f"退款记录={counts['refund']} 条，"
         f"结果={'PASS' if rollback_passed else 'FAIL'}"
     )
     return 0 if transaction_passed and rollback_passed else 5

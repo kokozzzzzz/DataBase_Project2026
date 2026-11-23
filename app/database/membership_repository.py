@@ -274,6 +274,204 @@ def fetch_promotion_redemption_statistics(
     return row
 
 
+def list_user_charging_history(
+    connection: Connection,
+    *,
+    user_id: int,
+    period_start: datetime,
+    period_end: datetime,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """分页查询用户充电、支付、退款和优惠券核销历史。"""
+
+    _validate_positive_id(user_id, field_name="user_id")
+    _validate_period(period_start=period_start, period_end=period_end)
+    _validate_pagination(limit=limit, offset=offset)
+    sql = """
+        WITH successful_payment AS (
+            SELECT order_id, SUM(amount) AS paid_amount
+            FROM payment_record
+            WHERE status = 'SUCCESS'
+            GROUP BY order_id
+        ),
+        successful_refund AS (
+            SELECT pr.order_id, SUM(rr.amount) AS refund_amount
+            FROM refund_record AS rr
+            JOIN payment_record AS pr
+              ON pr.payment_id = rr.payment_id
+             AND pr.status = 'SUCCESS'
+            GROUP BY pr.order_id
+        )
+        SELECT
+            o.order_id,
+            o.vehicle_id,
+            v.model AS vehicle_model,
+            s.station_id,
+            s.name AS station_name,
+            o.starts_at,
+            o.ends_at,
+            o.state,
+            o.total_kwh,
+            o.gross_amount,
+            o.discount_amount,
+            o.gross_amount - o.discount_amount AS payable_amount,
+            COALESCE(sp.paid_amount, 0.00) AS paid_amount,
+            COALESCE(sr.refund_amount, 0.00) AS refund_amount,
+            COALESCE(sp.paid_amount, 0.00)
+                - COALESCE(sr.refund_amount, 0.00) AS net_paid_amount,
+            c.coupon_id,
+            c.coupon_code,
+            cr.redeemed_at AS coupon_redeemed_at
+        FROM charging_order AS o
+        JOIN vehicle AS v
+          ON v.vehicle_id = o.vehicle_id
+         AND v.user_id = o.user_id
+        JOIN charging_gun AS cg
+          ON cg.gun_id = o.gun_id
+        JOIN station AS s
+          ON s.station_id = cg.station_id
+        LEFT JOIN successful_payment AS sp
+          ON sp.order_id = o.order_id
+        LEFT JOIN successful_refund AS sr
+          ON sr.order_id = o.order_id
+        LEFT JOIN coupon_redemption AS cr
+          ON cr.order_id = o.order_id
+        LEFT JOIN coupon AS c
+          ON c.coupon_id = cr.coupon_id
+        WHERE o.user_id = %s
+          AND o.starts_at >= %s
+          AND o.starts_at < %s
+        ORDER BY o.starts_at DESC, o.order_id DESC
+        LIMIT %s OFFSET %s
+    """
+    parameters = (user_id, period_start, period_end, limit, offset)
+    with connection.cursor() as cursor:
+        cursor.execute(sql, parameters)
+        return list(cursor.fetchall())
+
+
+def fetch_user_account_overview(
+    connection: Connection,
+    *,
+    user_id: int,
+) -> dict[str, Any]:
+    """返回当前账户余额和累计充电资金概览，不冒充余额流水。"""
+
+    _validate_positive_id(user_id, field_name="user_id")
+    sql = """
+        WITH order_funds AS (
+            SELECT
+                o.order_id,
+                o.user_id,
+                o.total_kwh,
+                o.gross_amount,
+                o.discount_amount,
+                COALESCE(SUM(
+                    CASE WHEN pr.status = 'SUCCESS' THEN pr.amount ELSE 0 END
+                ), 0.00) AS paid_amount
+            FROM charging_order AS o
+            LEFT JOIN payment_record AS pr
+              ON pr.order_id = o.order_id
+            WHERE o.user_id = %s
+              AND o.state = 'BILLED'
+            GROUP BY
+                o.order_id,
+                o.user_id,
+                o.total_kwh,
+                o.gross_amount,
+                o.discount_amount
+        ),
+        order_refunds AS (
+            SELECT pr.order_id, SUM(rr.amount) AS refund_amount
+            FROM refund_record AS rr
+            JOIN payment_record AS pr
+              ON pr.payment_id = rr.payment_id
+             AND pr.status = 'SUCCESS'
+            JOIN charging_order AS o
+              ON o.order_id = pr.order_id
+            WHERE o.user_id = %s
+            GROUP BY pr.order_id
+        )
+        SELECT
+            u.user_id,
+            u.real_name,
+            u.user_status,
+            u.balance AS current_balance,
+            COUNT(ofu.order_id) AS billed_order_count,
+            COALESCE(SUM(ofu.total_kwh), 0.000) AS total_kwh,
+            COALESCE(SUM(ofu.gross_amount), 0.00) AS gross_amount,
+            COALESCE(SUM(ofu.discount_amount), 0.00) AS discount_amount,
+            COALESCE(SUM(ofu.paid_amount), 0.00) AS paid_amount,
+            COALESCE(SUM(orf.refund_amount), 0.00) AS refund_amount,
+            COALESCE(SUM(ofu.paid_amount), 0.00)
+                - COALESCE(SUM(orf.refund_amount), 0.00) AS net_paid_amount
+        FROM `user` AS u
+        LEFT JOIN order_funds AS ofu
+          ON ofu.user_id = u.user_id
+        LEFT JOIN order_refunds AS orf
+          ON orf.order_id = ofu.order_id
+        WHERE u.user_id = %s
+        GROUP BY
+            u.user_id,
+            u.real_name,
+            u.user_status,
+            u.balance
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (user_id, user_id, user_id))
+        row = cursor.fetchone()
+    if row is None:
+        raise ValueError(f"用户 {user_id} 不存在。")
+    return row
+
+
+def list_user_order_invoice_trace(
+    connection: Connection,
+    *,
+    user_id: int,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """查询用户订单进入运营商结算及开票的追溯关系。"""
+
+    _validate_positive_id(user_id, field_name="user_id")
+    _validate_pagination(limit=limit, offset=offset)
+    sql = """
+        SELECT
+            o.order_id,
+            o.starts_at,
+            o.total_kwh,
+            sd.settlement_detail_id,
+            ss.settlement_id,
+            ss.statement_no,
+            ss.period_start,
+            ss.period_end,
+            ss.status AS settlement_status,
+            sd.payable_amount AS order_settlement_amount,
+            ir.invoice_id,
+            ir.invoice_number,
+            ir.invoice_type,
+            ir.invoice_amount,
+            ir.status AS invoice_status,
+            ir.issued_at
+        FROM charging_order AS o
+        LEFT JOIN settlement_detail AS sd
+          ON sd.order_id = o.order_id
+         AND sd.detail_type = 'ORDER'
+        LEFT JOIN settlement_statement AS ss
+          ON ss.settlement_id = sd.settlement_id
+        LEFT JOIN invoice_record AS ir
+          ON ir.settlement_id = ss.settlement_id
+        WHERE o.user_id = %s
+        ORDER BY o.starts_at DESC, o.order_id DESC, ir.invoice_id
+        LIMIT %s OFFSET %s
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, (user_id, limit, offset))
+        return list(cursor.fetchall())
+
+
 def list_fleet_monthly_charging_details(
     connection: Connection,
     *,

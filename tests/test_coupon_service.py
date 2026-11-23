@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -13,6 +13,7 @@ from app.services.coupon_service import (
     issue_coupon,
     lock_coupon_for_order,
     redeem_coupon_for_order,
+    reissue_coupon_after_full_refund,
     release_coupon_from_order,
 )
 
@@ -295,4 +296,166 @@ def test_redeem_coupon_rejects_insufficient_payment() -> None:
             FakeConnection(cursor),
             coupon_id=50001,
             order_id=80001,
+        )
+
+
+class RefundFakeCursor:
+    def __init__(
+        self,
+        *,
+        fetchone_rows: list[dict[str, Any] | None],
+        fetchall_rows: list[list[dict[str, Any]]],
+    ) -> None:
+        self.fetchone_rows = fetchone_rows
+        self.fetchall_rows = fetchall_rows
+        self.executions: list[tuple[str, tuple[Any, ...]]] = []
+        self.lastrowid = 50002
+
+    def __enter__(self) -> "RefundFakeCursor":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def execute(self, sql: str, parameters: tuple[Any, ...]) -> None:
+        self.executions.append((" ".join(sql.split()), parameters))
+
+    def fetchone(self) -> dict[str, Any] | None:
+        return self.fetchone_rows.pop(0)
+
+    def fetchall(self) -> list[dict[str, Any]]:
+        return self.fetchall_rows.pop(0)
+
+
+def _used_coupon_for_refund(**overrides: Any) -> dict[str, Any]:
+    row = {
+        "coupon_id": 50001,
+        "promotion_id": 40001,
+        "user_id": 10001,
+        "status": "USED",
+        "redemption_id": 70001,
+        "order_id": 80001,
+        "promotion_name": "测试优惠活动",
+        "total_quantity": 100,
+        "valid_from": VALID_FROM,
+        "valid_to": VALID_TO,
+        "promotion_status": "ACTIVE",
+        "user_status": "ACTIVE",
+        "database_time": NOW,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_full_refund_reissues_new_coupon_and_preserves_original() -> None:
+    cursor = RefundFakeCursor(
+        fetchone_rows=[
+            _used_coupon_for_refund(),
+            None,
+            {"total_issued": 3},
+        ],
+        fetchall_rows=[
+            [{"payment_id": 90001, "amount": Decimal("80.00")}],
+            [
+                {
+                    "refund_id": 91001,
+                    "amount": Decimal("80.00"),
+                    "occurred_at": NOW - timedelta(minutes=1),
+                }
+            ],
+        ],
+    )
+
+    result = reissue_coupon_after_full_refund(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        coupon_id=50001,
+    )
+
+    assert result["coupon_id"] == 50002
+    assert result["coupon_code"] == "REFUND-50001"
+    assert result["status"] == "AVAILABLE"
+    assert result["reused"] is False
+    assert result["paid_amount"] == Decimal("80.00")
+    assert result["refunded_amount"] == Decimal("80.00")
+    assert any(sql.startswith("INSERT INTO coupon") for sql, _ in cursor.executions)
+    assert not any(sql.startswith("UPDATE coupon") for sql, _ in cursor.executions)
+
+
+def test_partial_refund_does_not_reissue_coupon() -> None:
+    cursor = RefundFakeCursor(
+        fetchone_rows=[_used_coupon_for_refund()],
+        fetchall_rows=[
+            [{"payment_id": 90001, "amount": Decimal("80.00")}],
+            [
+                {
+                    "refund_id": 91001,
+                    "amount": Decimal("20.00"),
+                    "occurred_at": NOW - timedelta(minutes=1),
+                }
+            ],
+        ],
+    )
+
+    with pytest.raises(CouponOperationError, match="部分退款不补发"):
+        reissue_coupon_after_full_refund(  # type: ignore[arg-type]
+            FakeConnection(cursor),
+            coupon_id=50001,
+        )
+
+
+def test_full_refund_reissue_is_idempotent() -> None:
+    cursor = RefundFakeCursor(
+        fetchone_rows=[
+            _used_coupon_for_refund(),
+            {
+                "coupon_id": 50002,
+                "promotion_id": 40001,
+                "user_id": 10001,
+                "status": "AVAILABLE",
+                "valid_from": NOW,
+                "valid_to": VALID_TO,
+            },
+        ],
+        fetchall_rows=[
+            [{"payment_id": 90001, "amount": Decimal("80.00")}],
+            [
+                {
+                    "refund_id": 91001,
+                    "amount": Decimal("80.00"),
+                    "occurred_at": NOW - timedelta(minutes=1),
+                }
+            ],
+        ],
+    )
+
+    result = reissue_coupon_after_full_refund(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        coupon_id=50001,
+    )
+
+    assert result["coupon_id"] == 50002
+    assert result["reused"] is True
+    assert not any(sql.startswith("INSERT INTO coupon") for sql, _ in cursor.executions)
+
+
+def test_refund_review_time_cannot_precede_last_refund() -> None:
+    cursor = RefundFakeCursor(
+        fetchone_rows=[_used_coupon_for_refund()],
+        fetchall_rows=[
+            [{"payment_id": 90001, "amount": Decimal("80.00")}],
+            [
+                {
+                    "refund_id": 91001,
+                    "amount": Decimal("80.00"),
+                    "occurred_at": NOW,
+                }
+            ],
+        ],
+    )
+
+    with pytest.raises(CouponOperationError, match="不能早于最后退款时间"):
+        reissue_coupon_after_full_refund(  # type: ignore[arg-type]
+            FakeConnection(cursor),
+            coupon_id=50001,
+            reviewed_at=NOW - timedelta(minutes=1),
         )

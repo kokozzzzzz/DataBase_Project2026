@@ -463,6 +463,190 @@ def redeem_coupon_for_order(
     }
 
 
+def reissue_coupon_after_full_refund(
+    connection: Connection,
+    *,
+    coupon_id: int,
+    reviewed_at: datetime | None = None,
+) -> dict[str, Any]:
+    """全额退款经人工审核后补发同活动券；部分退款不返券。
+
+    原券和核销记录保持不变，新券使用 ``REFUND-原券编号`` 作为幂等业务码。
+    补发不再次受单用户限领数约束，但仍受活动总量、有效期和用户状态约束。
+    事务提交或回滚由调用方控制。
+    """
+
+    _validate_ids(coupon_id=coupon_id)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                c.coupon_id,
+                c.promotion_id,
+                c.user_id,
+                c.status,
+                cr.redemption_id,
+                cr.order_id,
+                p.promotion_name,
+                p.total_quantity,
+                p.valid_from,
+                p.valid_to,
+                p.status AS promotion_status,
+                u.user_status,
+                CURRENT_TIMESTAMP AS database_time
+            FROM coupon AS c
+            JOIN coupon_redemption AS cr
+              ON cr.coupon_id = c.coupon_id
+            JOIN charging_order AS o
+              ON o.order_id = cr.order_id
+             AND o.user_id = c.user_id
+            JOIN promotion AS p
+              ON p.promotion_id = c.promotion_id
+            JOIN `user` AS u
+              ON u.user_id = c.user_id
+            WHERE c.coupon_id = %s
+            FOR UPDATE
+            """,
+            (coupon_id,),
+        )
+        original = cursor.fetchone()
+        if original is None:
+            raise CouponOperationError("原优惠券不存在或没有有效核销记录。")
+        if original["status"] != "USED":
+            raise CouponOperationError("只有已核销优惠券才能申请退款补发。")
+        if original["user_status"] != "ACTIVE":
+            raise CouponOperationError("持券用户当前不可接收补发券。")
+
+        cursor.execute(
+            """
+            SELECT payment_id, amount
+            FROM payment_record
+            WHERE order_id = %s
+              AND status = 'SUCCESS'
+            ORDER BY payment_id
+            FOR UPDATE
+            """,
+            (original["order_id"],),
+        )
+        payments = list(cursor.fetchall())
+        paid_amount = sum(
+            (_as_money(row["amount"], "payment.amount") for row in payments),
+            ZERO,
+        )
+        if paid_amount <= ZERO:
+            raise CouponOperationError("原订单没有成功支付记录。")
+
+        cursor.execute(
+            """
+            SELECT rr.refund_id, rr.amount, rr.occurred_at
+            FROM refund_record AS rr
+            JOIN payment_record AS pr
+              ON pr.payment_id = rr.payment_id
+             AND pr.status = 'SUCCESS'
+            WHERE pr.order_id = %s
+            ORDER BY rr.refund_id
+            FOR UPDATE
+            """,
+            (original["order_id"],),
+        )
+        refunds = list(cursor.fetchall())
+        refunded_amount = sum(
+            (_as_money(row["amount"], "refund.amount") for row in refunds),
+            ZERO,
+        )
+        if refunded_amount < paid_amount:
+            raise CouponOperationError("订单尚未全额退款，部分退款不补发优惠券。")
+
+        operation_time = reviewed_at or original["database_time"]
+        latest_refund_at = max(row["occurred_at"] for row in refunds)
+        if operation_time < latest_refund_at:
+            raise CouponOperationError("退款补发审核时间不能早于最后退款时间。")
+        if original["promotion_status"] != "ACTIVE":
+            raise CouponOperationError("原优惠活动当前不可补发。")
+        if not original["valid_from"] <= operation_time < original["valid_to"]:
+            raise CouponOperationError("审核时间不在原优惠活动有效期内。")
+
+        compensation_code = f"REFUND-{coupon_id}"
+        cursor.execute(
+            """
+            SELECT coupon_id, promotion_id, user_id, status, valid_from, valid_to
+            FROM coupon
+            WHERE coupon_code = %s
+            FOR UPDATE
+            """,
+            (compensation_code,),
+        )
+        existing = cursor.fetchone()
+        if existing is not None:
+            if (
+                existing["promotion_id"] != original["promotion_id"]
+                or existing["user_id"] != original["user_id"]
+            ):
+                raise CouponOperationError("退款补发业务码发生冲突。")
+            return {
+                "coupon_id": existing["coupon_id"],
+                "coupon_code": compensation_code,
+                "original_coupon_id": coupon_id,
+                "order_id": original["order_id"],
+                "promotion_id": original["promotion_id"],
+                "user_id": original["user_id"],
+                "status": existing["status"],
+                "paid_amount": paid_amount,
+                "refunded_amount": refunded_amount,
+                "valid_from": existing["valid_from"],
+                "valid_to": existing["valid_to"],
+                "reused": True,
+            }
+
+        cursor.execute(
+            "SELECT COUNT(*) AS total_issued FROM coupon WHERE promotion_id = %s",
+            (original["promotion_id"],),
+        )
+        total_issued = int(cursor.fetchone()["total_issued"])
+        total_quantity = original["total_quantity"]
+        if total_quantity is not None and total_issued >= int(total_quantity):
+            raise CouponOperationError("原优惠活动发券总量已用完，不能补发。")
+
+        cursor.execute(
+            """
+            INSERT INTO coupon (
+                coupon_code,
+                promotion_id,
+                user_id,
+                issued_at,
+                valid_from,
+                valid_to,
+                status
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'AVAILABLE')
+            """,
+            (
+                compensation_code,
+                original["promotion_id"],
+                original["user_id"],
+                operation_time,
+                operation_time,
+                original["valid_to"],
+            ),
+        )
+        compensation_coupon_id = cursor.lastrowid
+
+    return {
+        "coupon_id": compensation_coupon_id,
+        "coupon_code": compensation_code,
+        "original_coupon_id": coupon_id,
+        "order_id": original["order_id"],
+        "promotion_id": original["promotion_id"],
+        "user_id": original["user_id"],
+        "status": "AVAILABLE",
+        "paid_amount": paid_amount,
+        "refunded_amount": refunded_amount,
+        "valid_from": operation_time,
+        "valid_to": original["valid_to"],
+        "reused": False,
+    }
+
+
 def _lock_order(cursor: Any, order_id: int) -> dict[str, Any]:
     cursor.execute(
         """

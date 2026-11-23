@@ -139,6 +139,150 @@ WHERE p.status = 'ACTIVE'
   AND @query_time < p.valid_to
 ORDER BY p.promotion_id;
 
+-- Q15：用户充电、支付、退款和优惠券使用历史。
+-- 支付与退款先各自聚合，避免多笔支付 × 多笔退款导致金额重复。
+SET @history_user_id = 10001;
+SET @history_start = TIMESTAMP('2026-11-01 00:00:00');
+SET @history_end = TIMESTAMP('2027-01-01 00:00:00');
+
+WITH successful_payment AS (
+    SELECT order_id, SUM(amount) AS paid_amount
+    FROM payment_record
+    WHERE status = 'SUCCESS'
+    GROUP BY order_id
+),
+successful_refund AS (
+    SELECT pr.order_id, SUM(rr.amount) AS refund_amount
+    FROM refund_record AS rr
+    JOIN payment_record AS pr
+        ON pr.payment_id = rr.payment_id
+       AND pr.status = 'SUCCESS'
+    GROUP BY pr.order_id
+)
+SELECT
+    o.order_id,
+    o.vehicle_id,
+    v.model AS vehicle_model,
+    s.station_id,
+    s.name AS station_name,
+    o.starts_at,
+    o.ends_at,
+    o.state,
+    o.total_kwh,
+    o.gross_amount,
+    o.discount_amount,
+    o.gross_amount - o.discount_amount AS payable_amount,
+    COALESCE(sp.paid_amount, 0.00) AS paid_amount,
+    COALESCE(sr.refund_amount, 0.00) AS refund_amount,
+    COALESCE(sp.paid_amount, 0.00)
+        - COALESCE(sr.refund_amount, 0.00) AS net_paid_amount,
+    c.coupon_code,
+    cr.redeemed_at AS coupon_redeemed_at
+FROM charging_order AS o
+JOIN vehicle AS v
+    ON v.vehicle_id = o.vehicle_id
+   AND v.user_id = o.user_id
+JOIN charging_gun AS cg
+    ON cg.gun_id = o.gun_id
+JOIN station AS s
+    ON s.station_id = cg.station_id
+LEFT JOIN successful_payment AS sp
+    ON sp.order_id = o.order_id
+LEFT JOIN successful_refund AS sr
+    ON sr.order_id = o.order_id
+LEFT JOIN coupon_redemption AS cr
+    ON cr.order_id = o.order_id
+LEFT JOIN coupon AS c
+    ON c.coupon_id = cr.coupon_id
+WHERE o.user_id = @history_user_id
+  AND o.starts_at >= @history_start
+  AND o.starts_at < @history_end
+ORDER BY o.starts_at DESC, o.order_id DESC;
+
+-- Q16：用户当前余额与累计资金概览。
+-- user.balance仅表示当前余额；当前结构没有余额流水表，因此不伪造余额变动明细。
+WITH order_funds AS (
+    SELECT
+        o.order_id,
+        o.user_id,
+        o.total_kwh,
+        o.gross_amount,
+        o.discount_amount,
+        COALESCE(SUM(
+            CASE WHEN pr.status = 'SUCCESS' THEN pr.amount ELSE 0 END
+        ), 0.00) AS paid_amount
+    FROM charging_order AS o
+    LEFT JOIN payment_record AS pr
+        ON pr.order_id = o.order_id
+    WHERE o.user_id = @history_user_id
+      AND o.state = 'BILLED'
+    GROUP BY
+        o.order_id,
+        o.user_id,
+        o.total_kwh,
+        o.gross_amount,
+        o.discount_amount
+),
+order_refunds AS (
+    SELECT pr.order_id, SUM(rr.amount) AS refund_amount
+    FROM refund_record AS rr
+    JOIN payment_record AS pr
+        ON pr.payment_id = rr.payment_id
+       AND pr.status = 'SUCCESS'
+    JOIN charging_order AS o
+        ON o.order_id = pr.order_id
+    WHERE o.user_id = @history_user_id
+    GROUP BY pr.order_id
+)
+SELECT
+    u.user_id,
+    u.real_name,
+    u.user_status,
+    u.balance AS current_balance,
+    COUNT(ofu.order_id) AS billed_order_count,
+    COALESCE(SUM(ofu.total_kwh), 0.000) AS total_kwh,
+    COALESCE(SUM(ofu.gross_amount), 0.00) AS gross_amount,
+    COALESCE(SUM(ofu.discount_amount), 0.00) AS discount_amount,
+    COALESCE(SUM(ofu.paid_amount), 0.00) AS paid_amount,
+    COALESCE(SUM(orf.refund_amount), 0.00) AS refund_amount,
+    COALESCE(SUM(ofu.paid_amount), 0.00)
+        - COALESCE(SUM(orf.refund_amount), 0.00) AS net_paid_amount
+FROM `user` AS u
+LEFT JOIN order_funds AS ofu
+    ON ofu.user_id = u.user_id
+LEFT JOIN order_refunds AS orf
+    ON orf.order_id = ofu.order_id
+WHERE u.user_id = @history_user_id
+GROUP BY u.user_id, u.real_name, u.user_status, u.balance;
+
+-- Q17：用户订单进入运营商结算和开票的追溯关系。
+-- invoice_record是运营商结算发票，不是用户个人电子发票；税号密文不出现在结果中。
+SELECT
+    o.order_id,
+    o.starts_at,
+    o.total_kwh,
+    sd.settlement_detail_id,
+    ss.statement_no,
+    ss.period_start,
+    ss.period_end,
+    ss.status AS settlement_status,
+    sd.payable_amount AS order_settlement_amount,
+    ir.invoice_number,
+    ir.invoice_type,
+    ir.invoice_amount,
+    ir.status AS invoice_status,
+    ir.issued_at
+FROM charging_order AS o
+LEFT JOIN settlement_detail AS sd
+    ON sd.order_id = o.order_id
+   AND sd.detail_type = 'ORDER'
+LEFT JOIN settlement_statement AS ss
+    ON ss.settlement_id = sd.settlement_id
+LEFT JOIN invoice_record AS ir
+    ON ir.settlement_id = ss.settlement_id
+WHERE o.user_id = @history_user_id
+ORDER BY o.starts_at DESC, o.order_id DESC, ir.invoice_id;
+
 -- Q07：检查同一车辆是否同时属于多个有效车队。
 -- 当前约束由业务事务保证；正常结果应为 0 行。
 SELECT

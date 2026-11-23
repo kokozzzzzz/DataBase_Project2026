@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from app.database.membership_repository import (
+    fetch_user_account_overview,
     fetch_fleet_monthly_bill_summary,
     fetch_database_health,
     fetch_promotion_redemption_statistics,
@@ -16,6 +17,8 @@ from app.database.membership_repository import (
     list_available_global_promotions,
     list_fleet_monthly_charging_details,
     list_target_users,
+    list_user_charging_history,
+    list_user_order_invoice_trace,
     list_user_vehicles,
     list_user_profiles,
 )
@@ -181,6 +184,67 @@ def test_fetch_promotion_redemption_statistics_is_parameterized() -> None:
     assert cursor.parameters == [40001]
     assert "COUNT(DISTINCT c.coupon_id)" in cursor.sql
     assert "COUNT(DISTINCT cr.redemption_id)" in cursor.sql
+
+
+def test_list_user_charging_history_uses_half_open_period_and_aggregates() -> None:
+    expected = [{"order_id": 5, "net_paid_amount": Decimal("7.00")}]
+    cursor = FakeCursor(expected)
+    period_start = datetime(2026, 11, 1)
+    period_end = datetime(2026, 12, 1)
+
+    rows = list_user_charging_history(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        user_id=10001,
+        period_start=period_start,
+        period_end=period_end,
+        limit=20,
+        offset=5,
+    )
+
+    assert rows == expected
+    assert cursor.parameters == [10001, period_start, period_end, 20, 5]
+    assert "WITH successful_payment AS" in cursor.sql
+    assert "o.starts_at >= %s" in cursor.sql
+    assert "o.starts_at < %s" in cursor.sql
+    assert "LEFT JOIN coupon_redemption AS cr" in cursor.sql
+
+
+def test_fetch_user_account_overview_separates_balance_from_funds() -> None:
+    expected = {
+        "user_id": 10001,
+        "current_balance": Decimal("10.00"),
+        "net_paid_amount": Decimal("7.00"),
+    }
+    cursor = FakeCursor([expected])
+
+    row = fetch_user_account_overview(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        user_id=10001,
+    )
+
+    assert row == expected
+    assert cursor.parameters == [10001, 10001, 10001]
+    assert "u.balance AS current_balance" in cursor.sql
+    assert "pr.status = 'SUCCESS'" in cursor.sql
+    assert "SUM(rr.amount)" in cursor.sql
+
+
+def test_list_user_order_invoice_trace_does_not_expose_tax_ciphertext() -> None:
+    expected = [{"order_id": 5, "statement_no": "ST-001"}]
+    cursor = FakeCursor(expected)
+
+    rows = list_user_order_invoice_trace(  # type: ignore[arg-type]
+        FakeConnection(cursor),
+        user_id=10001,
+        limit=10,
+        offset=2,
+    )
+
+    assert rows == expected
+    assert cursor.parameters == [10001, 10, 2]
+    assert "sd.detail_type = 'ORDER'" in cursor.sql
+    assert "LEFT JOIN invoice_record AS ir" in cursor.sql
+    assert "tax_number_ciphertext" not in cursor.sql
 
 
 def test_list_fleet_monthly_details_aggregates_payments_before_join() -> None:
