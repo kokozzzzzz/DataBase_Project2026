@@ -1,6 +1,6 @@
 # D同学负责模块：用户会员运营与结算对账
 
-> **2026-11-21更新**：最新全组进度、规则、升级步骤及分工见[集成修正与交接](../集成修正_2026-11-21/README.md)。下文保留本模块历史记录，以最新交接说明为准。
+> **2026-11-22更新**：D④核心与跨模块事务已完成，D⑤结构、视图、过程和正式测试数据均已在 MySQL 8.0.46 验收。历史集成规则见[集成修正与交接](../集成修正_2026-11-21/README.md)。
 
 ## 1. 负责人
 
@@ -16,7 +16,7 @@ D同学
 | 业务线 | 状态 | 说明 |
 | --- | --- | --- |
 | ④ 用户与会员运营 | 12 张表及核心事务已实测 | 9 张核心表、3 张跨模块表、Python 持久层、会员/车队/优惠券事务和 20 项 B–D 集成检查均已通过 |
-| ⑤ 结算与对账 | 5 张表已建并通过结构验收 | MySQL 8.0.46 实测 S01～S10 全部 PASS；5 主键、13 外键、7 唯一、20 CHECK、2 个生成列均符合定稿字典 |
+| ⑤ 结算与对账 | 核心数据库与 Python 事务服务已完成 | 结构、正式数据、复杂查询、差异调整、普通开票与红字冲销均通过单元测试和真实数据库回滚演示 |
 
 运行环境：MySQL 8.0.46 / InnoDB / utf8mb4，开发语言 Python（PyMySQL + python-dotenv）。
 
@@ -29,8 +29,26 @@ D同学
 | `docs/d/05_settlement.md` | ⑤ 结算与对账定稿设计、金额口径、状态流转、索引与实施计划 |
 | `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
 | `sql/D/05_settlement_schema.sql` | ⑤ 五张正式业务表 DDL，不含删除语句，依赖 B 的运营商、场站、订单、支付和退款表 |
+| `sql/D/05_settlement_upgrade_signed_payable.sql` | ⑤ 已有库升级：允许只有跨期退款的账期形成负净结算额，不删除业务数据 |
 | `sql/D/05_settlement_verify.sql` | ⑤ 表数量、字段、约束、外键、类型、生成列和引擎的只读验收脚本 |
+| `sql/D/05_settlement_views.sql` | ⑤ 结算单汇总、逐订单结算、待处理差异三个 `SQL SECURITY INVOKER` 视图 |
+| `sql/D/05_settlement_views_verify.sql` | ⑤ 视图数量、字段、调用者权限和敏感字段暴露检查 |
+| `sql/D/05_settlement_procedure.sql` | ⑤ 生成账期结算单、足额支付基础明细和跨期退款调整的事务内存储过程 |
+| `sql/D/05_settlement_procedure_verify.sql` | ⑤ 过程元数据、幂等生成、负向退款调整、视图读取和统一回滚验收 |
 | `sql/D/05_settlement_seed_preflight.sql` | ⑤ 测试数据前只读检查：现有 B 订单、费用分段、成功支付、退款及可结算订单规模 |
+| `sql/D/05_settlement_seed.sql` | ⑤ 正式联调种子：40 个账期、60 条明细、20 条差异、40 条确认和 40 条发票；由调用方控制提交 |
+| `sql/D/05_settlement_seed_verify.sql` | ⑤ 正式数据只读验收：规模、唯一性、双方确认、红字发票及财务汇总 `SD01～SD07` |
+| `sql/D/05_settlement_business_queries.sql` | ⑤ 六条连接至少 3 个关系的只读业务查询及 `Q07` 验收摘要 |
+| `sql/D/05_settlement_explain.sql` | ⑤ 五条关键查询的 `EXPLAIN ANALYZE` 执行计划 |
+| `app/database/settlement_repository.py` | ⑤ 结算汇总和未解决差异的只读分页持久层 |
+| `app/services/settlement_service.py` | ⑤ 双方确认与后续账期 `OTHER_ADJUSTMENT` 事务服务 |
+| `app/run_settlement_adjustment_demo.py` | ⑤ 追加确认、应用跨期调整和统一回滚的真实数据库演示 |
+| `tests/test_settlement_repository.py` | ⑤ 持久层参数、分页、动作值域和敏感字段单元测试 |
+| `tests/test_settlement_service.py` | ⑤ 确认状态、双方同意、目标账期与调整事务单元测试 |
+| `app/services/settlement_invoice_service.py` | ⑤ 普通发票开具、净额上限与分次红字冲销事务服务 |
+| `app/run_settlement_invoice_demo.py` | ⑤ 普通票→红字票→统一回滚的真实数据库演示 |
+| `tests/test_settlement_invoice_service.py` | ⑤ 开票状态、金额上限、密文类型、红冲累计额和时间顺序单元测试 |
+| `docs/d/evidence/05_b_formal_seed_local_20261122.json` | MySQL 8.0.46 本机 B-FORMAL-v1 提交结果及实际订单编号证据 |
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
@@ -57,7 +75,7 @@ D同学
 
 ## 5. 已完成验收
 
-截至当前提交前，④业务线核心部分及 B–D 跨模块结构已取得以下实测结果：
+截至 2026-11-22，④业务线核心部分、B–D 跨模块结构和⑤正式结算数据已取得以下实测结果：
 
 | 检查项 | 结果 |
 | --- | --- |
@@ -74,7 +92,7 @@ D同学
 | 优惠计算 | 100 元订单匹配 20 个全场活动；最优活动 40019，优惠 24 元、实付 76 元 |
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
-| Python 单元测试 | 全仓 73 passed（新增 9 项优惠券事务测试） |
+| Python 单元测试 | 全仓 121 passed（⑤新增 20 项持久层、对账调整及发票事务测试） |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
 | B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
@@ -82,7 +100,15 @@ D同学
 | ⑤核心 DDL | 5 张表创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci`，共 83 个字段 |
 | ⑤完整性约束 | 5 个主键、13 个外键、7 个唯一约束、20 个 CHECK，S01～S10 全部 PASS |
 | ⑤跨模块接口 | 6 个 B 外键、7 个 D 内部外键、所有编号类型及 2 个生成列均验收通过 |
-| ⑤初始数据状态 | 5 张新表均为 0 行，等待测试数据阶段 |
+| ⑤正式交易输入 | B-FORMAL-v1 已提交；40 笔可结算订单、80 条成功支付和 20 笔次月退款，DP03/DP06 均 PASS |
+| ⑤跨期退款约束 | 结算单净额允许为负；正数表示平台应付，负数表示运营商返还或结转；升级 U01/U02 与结构 S11 均 PASS |
+| ⑤业务视图 | 3 个视图均为 `INVOKER`；字段数量 28/36/23，确认人姓名和纳税人识别号密文均未暴露 |
+| ⑤结算生成过程 | 11月2条基础订单应结16.64元；相同参数复用结算单；12月退款3.00元形成-2.21元调整；P01～P06全部PASS并回滚 |
+| ⑤正式测试数据 | 结算单 40、明细 60、差异 20、双方确认 40、发票 40；`SD01～SD07` 全部 PASS，净结算 288.60 元 |
+| ⑤多表业务查询 | Q01～Q06 全部执行成功且均连接至少 3 个关系；Q07 为 40/40/20/20/20，PASS |
+| ⑤执行计划 | E01～E05 均成功；账期、明细、订单追溯、差异确认和发票链路使用既有主键或复合索引，无需新增索引 |
+| ⑤对账调整事务 | 事务内追加最新确认、生成 `OTHER_ADJUSTMENT=-0.50` 并把差异更新为 `RESOLVED`；回滚后正式数据完全恢复，PASS |
+| ⑤开票红冲事务 | 事务内普通票 2.00 元、红字票 0.50 元，净开票 7.00→8.50 且原票变为 `RED_FLUSHED`；回滚后恢复 7.00，PASS |
 
 ## 6. 数据库实体
 
@@ -163,7 +189,30 @@ B 的 `operator`、`station`、`charging_order`、`payment_record`、`refund_rec
 ```sql
 SOURCE sql/D/05_settlement_preflight.sql;       -- P01～P04 必须 PASS，P05 必须为空
 SOURCE sql/D/05_settlement_schema.sql;          -- 首次创建五张表，不可重复执行；本机已完成
-SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S10 已全部 PASS
+SOURCE sql/D/05_settlement_verify.sql;          -- 本机 S01～S11 已全部 PASS
+SOURCE sql/D/05_settlement_views.sql;           -- 可重复执行，创建或更新 3 个 INVOKER 视图
+SOURCE sql/D/05_settlement_views_verify.sql;    -- V01～V04 PASS，并显示当前视图行数
+SOURCE sql/D/05_settlement_procedure.sql;       -- 创建或更新结算生成过程，不自动提交业务事务
+SOURCE sql/D/05_settlement_procedure_verify.sql; -- P01～P06 PASS，测试数据最终 ROLLBACK
+```
+
+B-FORMAL-v1 已提交且 `DP03=40`、`DP06=20` 后，在仓库根目录生成并验收⑤正式数据：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed_preflight.sql
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed.sql --commit
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_seed_verify.sql
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_business_queries.sql
+.\.venv\Scripts\python.exe -m app.run_sql --file sql/D/05_settlement_explain.sql
+```
+
+`05_settlement_seed.sql` 只允许在五张结算表均为空时正式执行一次。不带 `--commit` 可用于预演并在连接关闭后回滚；确认预演统计正确后再带 `--commit` 持久化。
+
+已按旧版 DDL 建表的数据库需在生成结算数据前执行一次：
+
+```sql
+SOURCE sql/D/05_settlement_upgrade_signed_payable.sql; -- U01/U02 PASS；不可重复执行
+SOURCE sql/D/05_settlement_verify.sql;                  -- S01～S11 PASS
 ```
 
 > 执行 B 固定测试集后，`04_membership_final_verify.sql` 会因 `user`/`vehicle`/`promotion` 行数超过 20、B 测试用户无会员等级而按设计报 FAIL；该脚本只用于 D 核心种子阶段。全模块联调请使用仓库根目录的 `sql/00_verify_all.sql`。
@@ -178,6 +227,8 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
 .\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_settlement_adjustment_demo
+.\.venv\Scripts\python.exe -m app.run_settlement_invoice_demo
 .\.venv\Scripts\python.exe tests\verify_b_structure.py
 .\.venv\Scripts\python.exe -m pytest -q
 ```
@@ -193,4 +244,4 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 5. 确认企业车队额度的计量单位、周期和月结统计口径。
 6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
 7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤ 五表已在 MySQL 8.0.46 创建，S01～S10 全部 PASS；下一步准备每表至少 20 条测试数据及事务回滚测试。
+8. ⑤差异确认、后续账期调整、普通开票和红字冲销事务服务已通过 20 项单元测试及两条真实数据库回滚演示；⑤核心开发完成。

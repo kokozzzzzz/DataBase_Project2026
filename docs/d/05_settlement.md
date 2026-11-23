@@ -117,6 +117,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 
 累计退款不得超过原订单成功支付金额，累计结算冲减不得超过原基础明细的应结金额。若教师或运营商合同给出其他规则，只替换退款冲减公式，不改变追溯结构。
 
+若退款发生账期没有新的正向订单，账期的 `payable_amount` 可以为负。负数表示运营商需要向平台返还，或经双方确认后结转到后续账期；不得为了通过非负约束而伪造正向调整。除 `total_adjustment_amount` 和 `payable_amount` 外，电量、原始费用、退款原额及分成金额等事实汇总仍必须非负。
+
 ## 7. 五张表的定稿结构
 
 ### 7.1 `settlement_statement`
@@ -133,6 +135,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 - 状态时间：`status`、`generated_at`、`confirmed_at`、`paid_at`、`created_at`、`updated_at`。
 
 状态：`DRAFT / GENERATED / CONFIRMED / PAID / VOID`。
+
+`payable_amount` 是有方向的净额：正数表示平台应付运营商，负数表示运营商应返还平台或结转下期。`PAID` 表示资金已按该方向结清，不限定资金只能从平台流向运营商。
 
 唯一约束：
 
@@ -205,7 +209,8 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 - `RED_LETTER` 发票必须关联同一结算单下已开具的普通发票；
 - 红字票开具后，原普通发票状态更新为 `RED_FLUSHED`；
 - 有效开票净额为“已开普通票金额 - 已开红字票金额”；
-- 有效开票净额不得小于 0，也不得超过结算单 `payable_amount`；
+- 有效开票净额不得小于 0；正净额结算单不得超过 `payable_amount`；
+- `payable_amount <= 0` 的结算单不得开具普通发票，应通过返还或后续账期结转完成结清；
 - 只有 `CONFIRMED` 或 `PAID` 结算单允许开票。
 
 ## 8. 状态流转与事务边界
@@ -229,14 +234,42 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 4. 开票：锁定结算单及已有发票，校验累计净开票金额后写入新发票。
 5. 红冲：锁定原票，创建红字票并更新原票状态，两步必须同一事务完成。
 
-## 9. 视图、过程和查询计划
+`app/services/settlement_service.py` 已实现前两项对账处理能力：
+
+- `confirm_reconciliation_difference` 锁定差异行后追加确认历史，按双方最新结论把差异更新为 `PENDING / CONFIRMED / REJECTED`；
+- `apply_reconciliation_adjustment` 再次校验双方最新结论均为 `AGREE`，要求目标结算单与源差异属于同一运营商和场站，并把调整写入后续 `GENERATED` 半开账期；
+- 服务本身不提交事务，由调用方统一 `COMMIT` 或 `ROLLBACK`；固定锁顺序为源差异及确认历史→目标结算单；
+- 真实数据库演示在事务内生成 `-0.50` 的 `OTHER_ADJUSTMENT` 并将差异更新为 `RESOLVED`，随后统一回滚，正式数据未改变。
+
+`app/services/settlement_invoice_service.py` 已实现开票与红冲：
+
+- 普通票仅允许对 `CONFIRMED / PAID` 且净应结额为正的结算单开具；锁定结算单和已有发票后校验累计净开票额不超过 `payable_amount`；
+- 红字票必须引用同一结算单的普通票，可分次冲销，但累计红字金额不得超过原票金额，冲销后原票状态为 `RED_FLUSHED`；
+- 税号只接收应用层加密后的 `bytes`，服务返回值和只读视图均不暴露税号密文；
+- 真实数据库演示在事务内开具 2.00 元普通票和 0.50 元红字票，净开票额由 7.00 元变为 8.50 元，统一回滚后恢复为 7.00 元。
+
+## 9. 视图、过程和查询实现
 
 课程任务书要求⑤至少提供 3 个实用视图和 1 个存储过程或触发器：
 
 1. `v_settlement_statement_summary`：结算单、场站、运营商、差异数量和净开票金额。
 2. `v_settlement_order_detail`：逐订单显示原价、优惠、支付、退款和本次应结金额。
 3. `v_reconciliation_pending`：待处理差异及平台/运营商最新确认结果，不暴露确认人姓名。
-4. `sp_generate_settlement_statement`：按运营商、场站、半开账期和分成率生成结算单及基础明细。
+4. `sp_generate_settlement_statement`：按运营商、场站、半开账期和分成率生成结算单、基础订单明细及跨期退款调整。
+
+三个视图均使用 `SQL SECURITY INVOKER`。逐订单视图复用 B 已分别聚合支付与退款的 `v_b_order_funds`，避免多笔支付和多笔退款直接连接后金额倍增；待处理差异视图只显示双方最新结论，不暴露 `confirmer_name`。
+
+生成过程使用完成支付流水的 `occurred_at` 归集基础订单，使用退款流水的 `occurred_at` 归集负向调整。过程不提交事务，由调用方统一提交或回滚；同一运营商、场站、账期和相同费率重复调用时复用已有 `GENERATED` 结算单。MySQL 8.0.46 实测覆盖11月两笔基础订单、幂等重试、12月退款调整和统一回滚。
+
+正式联调种子基于 B-FORMAL-v1 的 20 个运营商/场站和 40 笔足额支付订单生成：
+
+- 20 个 2026 年 11 月正向结算单和 40 条 `ORDER` 明细；
+- 20 个 2026 年 12 月负向结算单和 20 条 `REFUND_ADJUSTMENT` 明细；
+- 20 条退款差异及平台、运营商双方共 40 条 `AGREE` 确认历史；
+- 20 张普通票和 20 张红字票，普通票状态更新为 `RED_FLUSHED`；
+- 五表行数为 40/60/20/40/40，净结算总额 288.60 元，净开票额 140.00 元。
+
+`sql/D/05_settlement_seed_verify.sql` 的 `SD01～SD07` 已在 MySQL 8.0.46 全部通过。
 
 后续业务 SQL 至少覆盖：
 
@@ -260,6 +293,16 @@ REFUND_ADJUSTMENT.payable_amount = -refund_settlement_amount
 
 DDL 完成后使用 `EXPLAIN ANALYZE` 记录复杂查询执行计划，确认没有对大表进行不必要的全表扫描。
 
+2026-11-22 已在 MySQL 8.0.46 使用正式种子完成 E01～E05：
+
+- 账期筛选使用 `idx_settlement_station_period`，结算明细关联使用 `idx_detail_statement_type_event`；
+- 基础订单明细使用 `idx_detail_statement_type_event`，订单、用户、车辆均为主键单行查找；
+- 跨期退款使用 `idx_detail_order_event`，退款、原明细和两期结算单均为主键查找；
+- 差异与双方确认分别使用 `idx_difference_statement_status_time` 和 `idx_confirmation_difference_party_id`；
+- 普通票和红字票分别使用 `idx_invoice_settlement_status_time` 和 `idx_invoice_original`。
+
+测试集仅有几十行，分组阶段出现临时表或小表扫描属于优化器的合理选择；关键过滤和关联路径均已命中既有索引，因此本阶段不新增重复索引。
+
 ## 11. 仍需确认但不阻塞建表的事项
 
 以下规则通过字段和参数保留扩展空间，不阻塞五张表建表：
@@ -275,7 +318,8 @@ DDL 完成后使用 `EXPLAIN ANALYZE` 记录复杂查询执行计划，确认没
 1. 已按本说明修订 D 数据字典中的⑤字段和待确认状态。
 2. 已编写 `sql/D/05_settlement_schema.sql`，只创建五张表，不包含删除语句。
 3. 已编写只读结构验收脚本，验证表、外键、类型、唯一和 CHECK 约束。
-4. 已在 MySQL 8.0.46 执行 DDL；S01～S10 全部 PASS，五张表初始均为 0 行。
-5. 下一阶段准备每表至少 20 条测试数据及事务回滚测试。
-6. 后续完成 3 个视图、生成过程、5 条以上多表业务查询和执行计划。
-7. 最后实现 Python 持久层、差异确认/调整与开票事务服务。
+4. 已在 MySQL 8.0.46 执行 DDL和负净结算升级；S01～S11 全部 PASS。
+5. 已完成 3 个业务视图；V01～V04 全部 PASS，敏感字段未暴露。
+6. 已完成 `sp_generate_settlement_statement`；P01～P06 覆盖基础订单、幂等、跨期退款和回滚。
+7. 已生成五张表的正式测试数据；`SD01～SD07` 全部 PASS，各表均达到至少 20 行。
+8. 已完成 6 条多表查询、5 条 `EXPLAIN ANALYZE`、只读持久层、差异确认/调整及开票/红冲事务服务；⑤核心开发完成。
