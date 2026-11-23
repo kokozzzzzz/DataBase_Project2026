@@ -25,6 +25,8 @@ D同学
 | 路径 | 内容 |
 | --- | --- |
 | `docs/d/D_04_05_data_dictionary.xlsx` | ④⑤ 业务线数据字典 |
+| `docs/d/FINAL_ACCEPTANCE.md` | D④⑤最终 SQL/Python/真实事务验收清单及答辩演示顺序 |
+| `sql/D/00_verify_d_all.sql` | D④⑤只读统一验收入口，最终输出 `DF01～DF10` |
 | `docs/d/04_membership.md` | ④ 用户与会员运营 DDL 说明与执行顺序 |
 | `docs/d/05_settlement.md` | ⑤ 结算与对账定稿设计、金额口径、状态流转、索引与实施计划 |
 | `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
