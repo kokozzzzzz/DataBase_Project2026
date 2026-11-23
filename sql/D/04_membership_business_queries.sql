@@ -165,7 +165,7 @@ SELECT
     u.user_id,
     u.level_id AS current_level_id,
     rm.level_id AS latest_history_level_id,
-    IF(u.level_id = rm.level_id, 'MATCH', 'MISMATCH') AS result
+    IF(u.level_id <=> rm.level_id, 'MATCH', 'MISMATCH') AS result
 FROM `user` AS u
 LEFT JOIN ranked_membership AS rm
     ON rm.user_id = u.user_id
@@ -182,3 +182,238 @@ SELECT
     (SELECT COUNT(*) FROM fleet) AS fleet_count,
     (SELECT COUNT(*) FROM fleet_vehicle WHERE status = 'ACTIVE') AS active_fleet_vehicle_count,
     (SELECT COUNT(*) FROM fleet_quota_record) AS quota_record_count;
+
+-- Q10：企业车队月度充电明细。
+-- 账期按订单确认时间 confirmed_at 归属左闭右开区间；
+-- 车队归属按订单开始时间匹配加入/退出历史，调车后不会改写旧订单归属。
+-- 支付与退款先各自按订单汇总，避免多笔支付与多笔退款连接后重复累计。
+SET @fleet_id = 60001;
+SET @fleet_period_start = TIMESTAMP('2026-11-01 00:00:00');
+SET @fleet_period_end = TIMESTAMP('2026-12-01 00:00:00');
+
+WITH successful_payment AS (
+    SELECT
+        order_id,
+        SUM(amount) AS paid_amount
+    FROM payment_record
+    WHERE status = 'SUCCESS'
+    GROUP BY order_id
+),
+successful_refund AS (
+    SELECT
+        pr.order_id,
+        SUM(rr.amount) AS refund_amount
+    FROM refund_record AS rr
+    JOIN payment_record AS pr
+        ON pr.payment_id = rr.payment_id
+       AND pr.status = 'SUCCESS'
+    GROUP BY pr.order_id
+)
+SELECT
+    ec.enterprise_id,
+    ec.enterprise_name,
+    f.fleet_id,
+    f.fleet_name,
+    o.order_id,
+    o.vehicle_id,
+    v.model AS vehicle_model,
+    u.user_id,
+    u.real_name AS vehicle_owner,
+    s.station_id,
+    s.name AS station_name,
+    o.starts_at,
+    o.ends_at,
+    o.confirmed_at,
+    o.total_kwh,
+    o.gross_amount,
+    o.discount_amount,
+    o.gross_amount - o.discount_amount AS payable_amount,
+    COALESCE(sp.paid_amount, 0.00) AS paid_amount,
+    COALESCE(sr.refund_amount, 0.00) AS refund_amount,
+    COALESCE(sp.paid_amount, 0.00)
+        - COALESCE(sr.refund_amount, 0.00) AS net_paid_amount
+FROM fleet AS f
+JOIN enterprise_customer AS ec
+    ON ec.enterprise_id = f.enterprise_id
+JOIN fleet_vehicle AS fv
+    ON fv.fleet_id = f.fleet_id
+JOIN charging_order AS o
+    ON o.vehicle_id = fv.vehicle_id
+   AND o.starts_at >= fv.joined_at
+   AND (fv.left_at IS NULL OR o.starts_at < fv.left_at)
+JOIN vehicle AS v
+    ON v.vehicle_id = o.vehicle_id
+JOIN `user` AS u
+    ON u.user_id = o.user_id
+JOIN charging_gun AS cg
+    ON cg.gun_id = o.gun_id
+JOIN station AS s
+    ON s.station_id = cg.station_id
+LEFT JOIN successful_payment AS sp
+    ON sp.order_id = o.order_id
+LEFT JOIN successful_refund AS sr
+    ON sr.order_id = o.order_id
+WHERE f.fleet_id = @fleet_id
+  AND o.state = 'BILLED'
+  AND o.confirmed_at >= @fleet_period_start
+  AND o.confirmed_at < @fleet_period_end
+ORDER BY o.confirmed_at, o.order_id;
+
+-- Q11：企业车队月度账单动态汇总。
+-- 不新增月结表；每次按最终订单、成功支付和退款事实重新聚合。
+WITH successful_payment AS (
+    SELECT
+        order_id,
+        SUM(amount) AS paid_amount
+    FROM payment_record
+    WHERE status = 'SUCCESS'
+    GROUP BY order_id
+),
+successful_refund AS (
+    SELECT
+        pr.order_id,
+        SUM(rr.amount) AS refund_amount
+    FROM refund_record AS rr
+    JOIN payment_record AS pr
+        ON pr.payment_id = rr.payment_id
+       AND pr.status = 'SUCCESS'
+    GROUP BY pr.order_id
+)
+SELECT
+    ec.enterprise_id,
+    ec.enterprise_name,
+    f.fleet_id,
+    f.fleet_name,
+    @fleet_period_start AS period_start,
+    @fleet_period_end AS period_end,
+    COUNT(o.order_id) AS order_count,
+    COUNT(DISTINCT o.vehicle_id) AS vehicle_count,
+    COALESCE(SUM(o.total_kwh), 0.000) AS total_kwh,
+    COALESCE(SUM(o.gross_amount), 0.00) AS gross_amount,
+    COALESCE(SUM(o.discount_amount), 0.00) AS discount_amount,
+    COALESCE(SUM(o.gross_amount - o.discount_amount), 0.00) AS payable_amount,
+    COALESCE(SUM(sp.paid_amount), 0.00) AS paid_amount,
+    COALESCE(SUM(sr.refund_amount), 0.00) AS refund_amount,
+    COALESCE(SUM(sp.paid_amount), 0.00)
+        - COALESCE(SUM(sr.refund_amount), 0.00) AS net_paid_amount
+FROM fleet AS f
+JOIN enterprise_customer AS ec
+    ON ec.enterprise_id = f.enterprise_id
+LEFT JOIN fleet_vehicle AS fv
+    ON fv.fleet_id = f.fleet_id
+LEFT JOIN charging_order AS o
+    ON o.vehicle_id = fv.vehicle_id
+   AND o.starts_at >= fv.joined_at
+   AND (fv.left_at IS NULL OR o.starts_at < fv.left_at)
+   AND o.state = 'BILLED'
+   AND o.confirmed_at >= @fleet_period_start
+   AND o.confirmed_at < @fleet_period_end
+LEFT JOIN successful_payment AS sp
+    ON sp.order_id = o.order_id
+LEFT JOIN successful_refund AS sr
+    ON sr.order_id = o.order_id
+WHERE f.fleet_id = @fleet_id
+GROUP BY
+    ec.enterprise_id,
+    ec.enterprise_name,
+    f.fleet_id,
+    f.fleet_name;
+
+-- Q12：企业、车队或车辆额度使用情况。
+-- AMOUNT使用订单应付金额，ENERGY使用充电电量，ORDER_COUNT使用订单数。
+-- 额度统计沿用confirmed_at账期和历史车队归属口径。
+WITH quota_orders AS (
+    SELECT
+        qr.quota_record_id,
+        o.order_id,
+        o.total_kwh,
+        o.gross_amount - o.discount_amount AS payable_amount
+    FROM fleet_quota_record AS qr
+    JOIN charging_order AS o
+        ON qr.quota_scope = 'VEHICLE'
+       AND o.vehicle_id = qr.vehicle_id
+       AND o.state = 'BILLED'
+       AND o.confirmed_at >= qr.period_start
+       AND o.confirmed_at < qr.period_end
+    UNION ALL
+    SELECT
+        qr.quota_record_id,
+        o.order_id,
+        o.total_kwh,
+        o.gross_amount - o.discount_amount AS payable_amount
+    FROM fleet_quota_record AS qr
+    JOIN fleet_vehicle AS fv
+        ON qr.quota_scope = 'FLEET'
+       AND fv.fleet_id = qr.fleet_id
+    JOIN charging_order AS o
+        ON o.vehicle_id = fv.vehicle_id
+       AND o.starts_at >= fv.joined_at
+       AND (fv.left_at IS NULL OR o.starts_at < fv.left_at)
+       AND o.state = 'BILLED'
+       AND o.confirmed_at >= qr.period_start
+       AND o.confirmed_at < qr.period_end
+    UNION ALL
+    SELECT
+        qr.quota_record_id,
+        o.order_id,
+        o.total_kwh,
+        o.gross_amount - o.discount_amount AS payable_amount
+    FROM fleet_quota_record AS qr
+    JOIN fleet AS f
+        ON qr.quota_scope = 'ENTERPRISE'
+       AND f.enterprise_id = qr.enterprise_id
+    JOIN fleet_vehicle AS fv
+        ON fv.fleet_id = f.fleet_id
+    JOIN charging_order AS o
+        ON o.vehicle_id = fv.vehicle_id
+       AND o.starts_at >= fv.joined_at
+       AND (fv.left_at IS NULL OR o.starts_at < fv.left_at)
+       AND o.state = 'BILLED'
+       AND o.confirmed_at >= qr.period_start
+       AND o.confirmed_at < qr.period_end
+),
+aggregated_usage AS (
+    SELECT
+        quota_record_id,
+        COUNT(*) AS order_count,
+        SUM(total_kwh) AS energy_used,
+        SUM(payable_amount) AS amount_used
+    FROM quota_orders
+    GROUP BY quota_record_id
+)
+SELECT
+    qr.quota_record_id,
+    qr.quota_scope,
+    qr.enterprise_id,
+    qr.fleet_id,
+    qr.vehicle_id,
+    qr.quota_type,
+    qr.quota_limit,
+    qr.period_start,
+    qr.period_end,
+    CASE qr.quota_type
+        WHEN 'AMOUNT' THEN COALESCE(au.amount_used, 0.00)
+        WHEN 'ENERGY' THEN COALESCE(au.energy_used, 0.000)
+        WHEN 'ORDER_COUNT' THEN COALESCE(au.order_count, 0)
+    END AS used_value,
+    GREATEST(
+        qr.quota_limit - CASE qr.quota_type
+            WHEN 'AMOUNT' THEN COALESCE(au.amount_used, 0.00)
+            WHEN 'ENERGY' THEN COALESCE(au.energy_used, 0.000)
+            WHEN 'ORDER_COUNT' THEN COALESCE(au.order_count, 0)
+        END,
+        0
+    ) AS remaining_value,
+    CASE
+        WHEN CASE qr.quota_type
+            WHEN 'AMOUNT' THEN COALESCE(au.amount_used, 0.00)
+            WHEN 'ENERGY' THEN COALESCE(au.energy_used, 0.000)
+            WHEN 'ORDER_COUNT' THEN COALESCE(au.order_count, 0)
+        END > qr.quota_limit
+        THEN 'EXCEEDED'
+        ELSE 'WITHIN_LIMIT'
+    END AS quota_status
+FROM fleet_quota_record AS qr
+LEFT JOIN aggregated_usage AS au
+    ON au.quota_record_id = qr.quota_record_id
+ORDER BY qr.period_start DESC, qr.quota_record_id;

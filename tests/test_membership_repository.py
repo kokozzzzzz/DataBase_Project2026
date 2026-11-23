@@ -9,8 +9,11 @@ from typing import Any
 import pytest
 
 from app.database.membership_repository import (
+    fetch_fleet_monthly_bill_summary,
     fetch_database_health,
+    fetch_quota_usage,
     list_available_global_promotions,
+    list_fleet_monthly_charging_details,
     list_user_profiles,
 )
 
@@ -116,3 +119,105 @@ def test_list_available_global_promotions_uses_time_and_amount_parameters() -> N
     assert cursor.parameters == [query_time, query_time, order_amount]
     assert "applicability_scope = 'ALL'" in cursor.sql
     assert "minimum_spend <= %s" in cursor.sql
+
+
+def test_list_fleet_monthly_details_aggregates_payments_before_join() -> None:
+    expected_rows = [{"order_id": 5, "net_paid_amount": Decimal("8.00")}]
+    cursor = FakeCursor(expected_rows)
+    connection = FakeConnection(cursor)
+    period_start = datetime(2026, 11, 1)
+    period_end = datetime(2026, 12, 1)
+
+    rows = list_fleet_monthly_charging_details(  # type: ignore[arg-type]
+        connection,
+        fleet_id=60001,
+        period_start=period_start,
+        period_end=period_end,
+        limit=20,
+        offset=5,
+    )
+
+    assert rows == expected_rows
+    assert cursor.parameters == [60001, period_start, period_end, 20, 5]
+    assert "WITH successful_payment AS" in cursor.sql
+    assert "pr.status = 'SUCCESS'" in cursor.sql
+    assert "o.starts_at >= fv.joined_at" in cursor.sql
+    assert "o.confirmed_at >= %s" in cursor.sql
+    assert "o.confirmed_at < %s" in cursor.sql
+
+
+def test_fetch_fleet_monthly_summary_returns_zero_capable_aggregate() -> None:
+    expected = {
+        "fleet_id": 60001,
+        "order_count": 2,
+        "payable_amount": Decimal("16.00"),
+    }
+    cursor = FakeCursor([expected])
+    connection = FakeConnection(cursor)
+    period_start = datetime(2026, 11, 1)
+    period_end = datetime(2026, 12, 1)
+
+    row = fetch_fleet_monthly_bill_summary(  # type: ignore[arg-type]
+        connection,
+        fleet_id=60001,
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+    assert row == expected
+    assert cursor.parameters == [
+        period_start,
+        period_end,
+        period_start,
+        period_end,
+        60001,
+    ]
+    assert "COUNT(DISTINCT o.vehicle_id)" in cursor.sql
+    assert "COALESCE(SUM(sr.refund_amount), 0.00)" in cursor.sql
+
+
+def test_fetch_fleet_monthly_summary_rejects_invalid_period() -> None:
+    connection = FakeConnection(FakeCursor([]))
+    same_time = datetime(2026, 11, 1)
+
+    with pytest.raises(ValueError, match="period_start"):
+        fetch_fleet_monthly_bill_summary(  # type: ignore[arg-type]
+            connection,
+            fleet_id=60001,
+            period_start=same_time,
+            period_end=same_time,
+        )
+
+
+def test_fetch_quota_usage_supports_all_three_scopes() -> None:
+    expected = {
+        "quota_record_id": 80001,
+        "quota_type": "AMOUNT",
+        "used_value": Decimal("16.00"),
+        "quota_status": "WITHIN_LIMIT",
+    }
+    cursor = FakeCursor([expected])
+    connection = FakeConnection(cursor)
+
+    row = fetch_quota_usage(  # type: ignore[arg-type]
+        connection,
+        quota_record_id=80001,
+    )
+
+    assert row == expected
+    assert cursor.parameters == [80001]
+    assert "q.quota_scope = 'VEHICLE'" in cursor.sql
+    assert "q.quota_scope = 'FLEET'" in cursor.sql
+    assert "q.quota_scope = 'ENTERPRISE'" in cursor.sql
+    assert "THEN 'EXCEEDED'" in cursor.sql
+
+
+@pytest.mark.parametrize("invalid_id", [0, -1])
+def test_fetch_quota_usage_rejects_invalid_id(invalid_id: int) -> None:
+    connection = FakeConnection(FakeCursor([]))
+
+    with pytest.raises(ValueError, match="quota_record_id"):
+        fetch_quota_usage(  # type: ignore[arg-type]
+            connection,
+            quota_record_id=invalid_id,
+        )
