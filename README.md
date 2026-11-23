@@ -137,6 +137,8 @@
 | [整体业务流程图](docs/新能源汽车充电桩平台_八条业务线整体业务流程图.png) | 八条业务线及跨模块交接关系 |
 | [D 模块开发说明](docs/d/README.md) | ④用户会员、⑤结算对账的状态、交付物、运行方式和待确认接口 |
 | [D 模块最终验收清单](docs/d/FINAL_ACCEPTANCE.md) | D④⑤统一 SQL 验收、Python 回归、事务回滚演示与答辩顺序 |
+| [D 局部 E-R 图](docs/d/D_ER_DIAGRAM.md) | D④⑤实体关系、基数及 B 模块外部依赖 |
+| [D 关系模式与 3NF](docs/d/D_DATABASE_DESIGN.md) | 17张表关系模式、函数依赖、规范化和数据字典审计 |
 | [D 模块统一验收脚本](sql/D/00_verify_d_all.sql) | 一次检查 D 的 17 张表、6 个视图、2 个过程、正式数据与关键业务不变量 |
 | [④业务线 DDL 说明](docs/d/04_membership.md) | ④核心表与跨模块表的设计说明、执行顺序和关键约束 |
 | [④跨模块正式数据验收](sql/D/04_membership_integration_data_verify.sql) | 验证活动场站、已核销优惠券与订单用户、金额、时间的一致性，`DI01～DI06` |

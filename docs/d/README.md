@@ -25,6 +25,8 @@ D同学
 | 路径 | 内容 |
 | --- | --- |
 | `docs/d/D_04_05_data_dictionary.xlsx` | ④⑤ 业务线数据字典 |
+| `docs/d/D_ER_DIAGRAM.md` | D④⑤局部 E-R 图、跨模块实体和关系基数 |
+| `docs/d/D_DATABASE_DESIGN.md` | 17张表关系模式、函数依赖、3NF分析和数据字典一致性结论 |
 | `docs/d/FINAL_ACCEPTANCE.md` | D④⑤最终 SQL/Python/真实事务验收清单及答辩演示顺序 |
 | `sql/D/00_verify_d_all.sql` | D④⑤只读统一验收入口，最终输出 `DF01～DF10` |
 | `docs/d/04_membership.md` | ④ 用户与会员运营 DDL 说明与执行顺序 |
@@ -102,6 +104,7 @@ D同学
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
 | Python 单元测试 | 全仓 149 passed（包含车队月结、用户车辆逻辑CRUD、目标筛选、批量发券、退款补券和用户资金查询测试） |
+| 设计文档 | 17张表关系模式、两张局部E-R图和3NF分析已完成；Excel字典191个字段与正式数据库一致 |
 | 用户运营事务 | 3组注册实名绑车、1张新人券、2张批量定向券、资料更新和逻辑关闭均PASS；回滚后用户、车辆、券均为0 |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
