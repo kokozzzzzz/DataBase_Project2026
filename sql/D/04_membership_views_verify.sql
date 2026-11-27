@@ -41,26 +41,68 @@ WHERE TABLE_SCHEMA = 'charging_platform'
       'contact_phone_ciphertext'
   );
 
--- C03：基于当前种子数据检查视图行数。
+-- C03：联调数据下，用户视图必须覆盖所有用户；其余视图与当前业务条件一致。
 SELECT
     'v_user_membership_profile' AS view_name,
     COUNT(*) AS actual_count,
-    20 AS expected_count,
-    IF(COUNT(*) = 20, 'PASS', 'FAIL') AS result
+    (SELECT COUNT(*) FROM `user`) AS expected_count,
+    IF(COUNT(*) = (SELECT COUNT(*) FROM `user`), 'PASS', 'FAIL') AS result
 FROM v_user_membership_profile
 UNION ALL
 SELECT
     'v_fleet_active_vehicle',
     COUNT(*),
-    20,
-    IF(COUNT(*) = 20, 'PASS', 'FAIL')
+    (
+        SELECT COUNT(*)
+        FROM enterprise_customer AS ec
+        JOIN fleet AS f
+          ON f.enterprise_id = ec.enterprise_id
+        JOIN fleet_vehicle AS fv
+          ON fv.fleet_id = f.fleet_id
+         AND fv.status = 'ACTIVE'
+        WHERE ec.status = 'ACTIVE'
+          AND f.status = 'ACTIVE'
+    ),
+    IF(
+        COUNT(*) = (
+            SELECT COUNT(*)
+            FROM enterprise_customer AS ec
+            JOIN fleet AS f
+              ON f.enterprise_id = ec.enterprise_id
+            JOIN fleet_vehicle AS fv
+              ON fv.fleet_id = f.fleet_id
+             AND fv.status = 'ACTIVE'
+            WHERE ec.status = 'ACTIVE'
+              AND f.status = 'ACTIVE'
+        ),
+        'PASS',
+        'FAIL'
+    )
 FROM v_fleet_active_vehicle
 UNION ALL
 SELECT
     'v_active_global_promotion',
     COUNT(*),
-    20,
-    IF(COUNT(*) = 20, 'PASS', 'FAIL')
+    (
+        SELECT COUNT(*)
+        FROM promotion
+        WHERE status = 'ACTIVE'
+          AND applicability_scope = 'ALL'
+          AND CURRENT_TIMESTAMP >= valid_from
+          AND CURRENT_TIMESTAMP < valid_to
+    ),
+    IF(
+        COUNT(*) = (
+            SELECT COUNT(*)
+            FROM promotion
+            WHERE status = 'ACTIVE'
+              AND applicability_scope = 'ALL'
+              AND CURRENT_TIMESTAMP >= valid_from
+              AND CURRENT_TIMESTAMP < valid_to
+        ),
+        'PASS',
+        'FAIL'
+    )
 FROM v_active_global_promotion;
 
 -- C04：每个视图展示少量样例，便于人工检查字段含义。

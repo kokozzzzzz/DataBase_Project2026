@@ -132,7 +132,7 @@ WHERE TABLE_SCHEMA = 'charging_platform'
        AND CONSTRAINT_NAME = 'uk_redemption_order')
   );
 
--- I07：首次创建后，三张表应为空，等待正式测试数据阶段。
+-- I07：显示当前行数；正式联调数据使用 04_membership_integration_data_verify.sql 验收。
 SELECT 'promotion_station' AS table_name, COUNT(*) AS row_count FROM promotion_station
 UNION ALL SELECT 'coupon', COUNT(*) FROM coupon
 UNION ALL SELECT 'coupon_redemption', COUNT(*) FROM coupon_redemption

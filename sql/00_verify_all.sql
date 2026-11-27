@@ -30,6 +30,9 @@ SOURCE sql/D/04_membership_verify.sql;
 SELECT '=== D 04 cross-module structure ===' AS section;
 SOURCE sql/D/04_membership_integration_verify.sql;
 
+SELECT '=== D 04 cross-module formal data ===' AS section;
+SOURCE sql/D/04_membership_integration_data_verify.sql;
+
 SELECT '=== D 04 views and procedure ===' AS section;
 SOURCE sql/D/04_membership_views_verify.sql;
 SOURCE sql/D/04_membership_procedure_verify.sql;

@@ -1,6 +1,6 @@
 # D同学负责模块：用户会员运营与结算对账
 
-> **2026-11-22更新**：D④核心与跨模块事务已完成，D⑤结构、视图、过程和正式测试数据均已在 MySQL 8.0.46 验收。历史集成规则见[集成修正与交接](../集成修正_2026-11-21/README.md)。
+> **2026-11-23更新**：D④核心、用户运营与退款补券事务已完成，D⑤结构、视图、过程和正式测试数据均已在 MySQL 8.0.46 验收。历史集成规则见[集成修正与交接](../集成修正_2026-11-21/README.md)。
 
 ## 1. 负责人
 
@@ -25,6 +25,17 @@ D同学
 | 路径 | 内容 |
 | --- | --- |
 | `docs/d/D_04_05_data_dictionary.xlsx` | ④⑤ 业务线数据字典 |
+| `docs/d/D_ER_DIAGRAM.md` | D④⑤局部 E-R 图、跨模块实体和关系基数 |
+| `docs/d/D_DATABASE_DESIGN.md` | 17张表关系模式、函数依赖、3NF分析和数据字典一致性结论 |
+| `docs/d/D_SECURITY_BACKUP.md` | D最小权限角色、全量备份、隔离恢复和验收步骤 |
+| `docs/d/D_SECURITY_STRATEGY.md` | 登录、会话、SQL注入、敏感数据、密钥、连接和审计安全策略 |
+| `docs/d/D_TEST_REPORT.md` | D④⑤结构、数据、执行计划、Python、事务、安全和恢复正式测试报告 |
+| `docs/d/FINAL_ACCEPTANCE.md` | D④⑤最终 SQL/Python/真实事务验收清单及答辩演示顺序 |
+| `sql/D/00_verify_d_all.sql` | D④⑤只读统一验收入口，最终输出 `DF01～DF10` |
+| `sql/D/06_security_roles.sql` | D只读、④运营、⑤结算三个最小权限角色，不创建用户或密码 |
+| `sql/D/06_security_roles_verify.sql` | 角色存在性、禁用权限、敏感列和职责分离只读验收 `R01～R07` |
+| `sql/D/06_restore_verify.sql` | 隔离恢复库17表、6视图、2过程、行数和关键不变量验收 `B01～B05` |
+| `sql/D/06_backup_incremental_preflight.sql` | binary log、ROW格式、实例编号、持久化和保留周期只读预检 `BI01～BI06` |
 | `docs/d/04_membership.md` | ④ 用户与会员运营 DDL 说明与执行顺序 |
 | `docs/d/05_settlement.md` | ⑤ 结算与对账定稿设计、金额口径、状态流转、索引与实施计划 |
 | `sql/D/05_settlement_preflight.sql` | ⑤ 建表前只读检查：B 依赖、编号类型、引擎排序规则和目标表不存在性 |
@@ -52,10 +63,11 @@ D同学
 | `sql/D/04_membership_core.sql` | 9 张核心表 DDL，不依赖 B 模块 |
 | `sql/D/04_membership_integration.sql` | 3 张跨模块表 DDL，需 B 创建 `station`、`charging_order` 后执行 |
 | `sql/D/04_membership_integration_verify.sql` | 跨模块表、B 外键、约束与类型的只读验收 |
+| `sql/D/04_membership_integration_data_verify.sql` | B-FORMAL-v1 生成的活动场站、优惠券及核销数据只读验收 `DI01～DI06` |
 | `sql/D/04_membership_verify.sql` | 只读 DDL 验证脚本 |
 | `sql/D/04_membership_seed_core.sql` | 9 张核心表各 20 条虚构测试数据，需手动 COMMIT |
 | `sql/D/04_membership_constraint_tests.sql` | 唯一、非负、外键、时间、状态等约束测试，测试后统一 ROLLBACK |
-| `sql/D/04_membership_business_queries.sql` | 9 条核心业务只读查询与验收摘要 |
+| `sql/D/04_membership_business_queries.sql` | 17 条只读业务查询，含车队月结、三级额度、目标人群、活动核销率、用户资金和结算开票追溯 |
 | `sql/D/04_membership_views.sql` | 3 个核心业务视图，使用调用者权限且不暴露敏感检索字段 |
 | `sql/D/04_membership_views_verify.sql` | 视图数量、敏感字段和结果行数的只读验收 |
 | `sql/D/04_membership_procedure.sql` | 只读优惠试算存储过程，覆盖两类优惠、门槛和封顶 |
@@ -64,13 +76,18 @@ D同学
 | `app/database/` | 连接配置、连接上下文、只读持久层 |
 | `app/services/membership_service.py` | 会员等级变更事务服务 |
 | `app/services/fleet_service.py` | 车辆加入/退出车队事务服务 |
+| `app/database/membership_repository.py` | 用户会员、充电资金、结算开票追溯，以及车队月结和三级额度持久层 |
+| `app/run_fleet_monthly_demo.py` | 使用正式订单临时建立车队关系，验证月结与额度后统一回滚 |
 | `app/services/promotion_service.py` | 固定减免、百分比折扣与最优活动计算服务 |
-| `app/services/coupon_service.py` | 优惠券发放、锁定、释放和成功支付核销事务服务 |
+| `app/services/coupon_service.py` | 优惠券发放、锁定、释放、支付核销及全额退款审核补发事务服务 |
+| `app/services/customer_service.py` | 注册实名绑车、用户/车辆逻辑CRUD和用户关闭事务服务 |
+| `app/services/targeted_coupon_service.py` | 活动与用户行锁、总量/限领校验及 `executemany` 批量发券 |
+| `app/run_customer_coupon_demo.py` | 注册绑车、新人券、两人批量发券、逻辑关闭和统一回滚演示 |
 | `app/run_membership_demo.py` | 连接与持久层演示入口 |
 | `app/run_membership_transaction_demo.py` | 真实数据库事务回滚演示入口 |
 | `app/run_fleet_transaction_demo.py` | 真实数据库调车事务回滚演示入口 |
 | `app/run_promotion_demo.py` | 全场活动筛选与最优优惠只读演示入口 |
-| `app/run_coupon_transaction_demo.py` | 发券→锁券→支付→核销的真实数据库回滚演示 |
+| `app/run_coupon_transaction_demo.py` | 发券→锁券→支付→核销→全额退款补发的真实数据库回滚演示 |
 | `tests/` | 配置、持久层、事务服务的单元测试（不连接真实数据库） |
 
 ## 5. 已完成验收
@@ -85,18 +102,24 @@ D同学
 | ID 类型 | 19 个主外键 ID 字段均为 `BIGINT UNSIGNED` |
 | 测试数据 | 9 张核心表各 20 条，共 180 条，已 COMMIT |
 | 约束与回滚 | T01～T08 全部 PASS，回滚后各表仍为 20 条 |
-| 核心业务查询 | Q01～Q09 执行成功；车辆有效车队冲突为 0，会员当前等级与最新历史全部 MATCH |
+| 核心业务查询 | Q01～Q17 执行成功；覆盖会员、车辆、车队月结、额度、人群、核销率、用户资金和开票追溯 |
 | Python 真实连接 | MySQL 8.0.46 / `charging_platform` / 会话时区 `+08:00` / 核心表 9/9 |
 | 会员等级事务 | 事务内用户等级和历史同时变化，ROLLBACK 后恢复原值，PASS |
 | 车队车辆事务 | 事务内退出 60001、加入 60002 且仅一条 ACTIVE；ROLLBACK 后恢复 60001，PASS |
+| 车队月结与额度 | 2 笔正式订单动态汇总为 32.000 kWh、应付 23.20 元；额度使用与账单一致，回滚后临时关系和额度记录均为 0，PASS |
 | 优惠计算 | 100 元订单匹配 20 个全场活动；最优活动 40019，优惠 24 元、实付 76 元 |
 | 数据库对象 | 3 个业务视图、1 个 `READS SQL DATA` / `INVOKER` 存储过程，验收通过 |
 | 最终综合回归 | F01～F08 全部 PASS；表、行数、约束、车队唯一性、等级一致性和敏感字段均正常 |
-| Python 单元测试 | 全仓 121 passed（⑤新增 20 项持久层、对账调整及发票事务测试） |
+| Python 单元测试 | 全仓 149 passed（包含车队月结、用户车辆逻辑CRUD、目标筛选、批量发券、退款补券和用户资金查询测试） |
+| 正式测试报告 | 2026-11-27重新执行统一SQL、5条执行计划、149项测试和7个回滚演示，全部通过 |
+| 设计文档 | 17张表关系模式、两张局部E-R图和3NF分析已完成；Excel字典191个字段与正式数据库一致 |
+| 安全与恢复 | `R01～R07`、`B01～B05`、binlog `BI01～BI05` 全部PASS；全量备份及独立库恢复约7.90秒 |
+| 用户运营事务 | 3组注册实名绑车、1张新人券、2张批量定向券、资料更新和逻辑关闭均PASS；回滚后用户、车辆、券均为0 |
 | 跨模块 DDL | `promotion_station`、`coupon`、`coupon_redemption` 创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci` |
 | 跨模块约束 | 3 个主键、7 个外键、4 个唯一约束、5 个 CHECK；I01～I06 全部 PASS |
+| ④跨模块正式数据 | 活动场站、优惠券、券核销各 20 行；用户、订单、场站、金额和时间一致性 `DI01～DI06` 全部 PASS |
 | B–D 联调 | B 16 张表、D 12 张表、7 个 B 触发器、6 个 B 视图及优惠券跨模块引用等共 20 项检查全部 PASS，测试事务已回滚 |
-| 优惠券事务 | 发券、锁券、订单优惠、成功支付和核销均 PASS；回滚后券、订单、运营商和支付记录均为 0 |
+| 优惠券事务 | 发券、锁券、支付核销、全额退款和幂等补券均 PASS；回滚后券、订单、运营商、支付和退款记录均为 0 |
 | ⑤核心 DDL | 5 张表创建成功，均为 InnoDB / `utf8mb4_0900_ai_ci`，共 83 个字段 |
 | ⑤完整性约束 | 5 个主键、13 个外键、7 个唯一约束、20 个 CHECK，S01～S10 全部 PASS |
 | ⑤跨模块接口 | 6 个 B 外键、7 个 D 内部外键、所有编号类型及 2 个生成列均验收通过 |
@@ -225,6 +248,8 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 .\.venv\Scripts\python.exe -m app.run_membership_demo
 .\.venv\Scripts\python.exe -m app.run_membership_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_fleet_transaction_demo
+.\.venv\Scripts\python.exe -m app.run_fleet_monthly_demo
+.\.venv\Scripts\python.exe -m app.run_customer_coupon_demo
 .\.venv\Scripts\python.exe -m app.run_promotion_demo
 .\.venv\Scripts\python.exe -m app.run_coupon_transaction_demo
 .\.venv\Scripts\python.exe -m app.run_settlement_adjustment_demo
@@ -239,9 +264,10 @@ Copy-Item .env.example .env   # 首次运行时填写本机 MySQL 密码
 
 1. `operator`、`station`、`charging_order`、`payment_record`、`refund_record` 的正式字段和编号类型已经按 B 结构确认。
 2. 订单、支付和退款统一使用 `+08:00` 会话时区；支付和退款分别按各自 `occurred_at` 进入半开账期。正式分成费率仍需由老师或合同参数确认。
-3. 锁券、支付失败释放和支付成功核销已实现；取消订单可调用释放操作，退款后是否返券仍需确认。
-4. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
-5. 确认企业车队额度的计量单位、周期和月结统计口径。
-6. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
-7. 3 张跨模块表尚未准备永久测试数据；需在 B 的正式测试数据编号稳定后各补足 20 条。
-8. ⑤差异确认、后续账期调整、普通开票和红字冲销事务服务已通过 20 项单元测试及两条真实数据库回滚演示；⑤核心开发完成。
+3. 锁券、支付失败释放和支付成功核销已实现；取消订单可调用释放操作。部分退款不返券；全额退款经人工审核后补发新券，原券及核销记录不修改。
+4. `user.balance` 是当前余额而非流水；当前结构提供订单支付退款聚合，不提供虚构的余额明细。`invoice_record` 属于运营商结算发票，仅提供订单到结算开票的管理追溯。
+5. 确认已发券是否保存优惠规则快照，以及是否增加按会员等级配置定向人群的关联表。
+6. 企业车队已支持金额、电量和订单次数额度；账期按订单 `confirmed_at`、历史车队归属按订单 `starts_at` 统计。合同实际采用的额度类型和上限仍由业务配置决定。
+7. 确认会员等级及其权益的最终定义（当前仅字典表，无权益明细表）。
+8. 3 张跨模块表已由 B-FORMAL-v1 各生成 20 条正式联调数据，`DI01～DI06` 全部 PASS。
+9. ⑤差异确认、后续账期调整、普通开票和红字冲销事务服务已通过 20 项单元测试及两条真实数据库回滚演示；⑤核心开发完成。
