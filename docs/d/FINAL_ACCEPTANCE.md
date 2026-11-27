@@ -32,6 +32,7 @@
 - `D_ER_DIAGRAM.md` 覆盖 D 的17张表及其 B 模块外部依赖；
 - `D_DATABASE_DESIGN.md` 包含关系模式、函数依赖、3NF和受控快照说明；
 - Excel数据字典包含17张表、191个字段，且与正式DDL一致。
+- `D_TEST_REPORT.md` 汇总最终SQL、执行计划、Python、事务、安全和恢复实测证据。
 
 安全和恢复验收：
 

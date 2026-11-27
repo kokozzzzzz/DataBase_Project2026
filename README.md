@@ -141,6 +141,7 @@
 | [D 关系模式与 3NF](docs/d/D_DATABASE_DESIGN.md) | 17张表关系模式、函数依赖、规范化和数据字典审计 |
 | [D 权限与备份恢复](docs/d/D_SECURITY_BACKUP.md) | 最小权限角色、全量备份、隔离恢复及只读验收步骤 |
 | [D 登录与应用安全策略](docs/d/D_SECURITY_STRATEGY.md) | 密码、失败锁定、会话、SQL注入、敏感数据和审计设计边界 |
+| [D 模块测试报告](docs/d/D_TEST_REPORT.md) | 结构数据、执行计划、Python测试、事务演示、安全及恢复实测汇总 |
 | [D 模块统一验收脚本](sql/D/00_verify_d_all.sql) | 一次检查 D 的 17 张表、6 个视图、2 个过程、正式数据与关键业务不变量 |
 | [④业务线 DDL 说明](docs/d/04_membership.md) | ④核心表与跨模块表的设计说明、执行顺序和关键约束 |
 | [④跨模块正式数据验收](sql/D/04_membership_integration_data_verify.sql) | 验证活动场站、已核销优惠券与订单用户、金额、时间的一致性，`DI01～DI06` |
