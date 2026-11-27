@@ -39,6 +39,8 @@
 - 三个D角色均无删除、DDL和转授权权限；只读角色无敏感列权限；
 - 已使用独立恢复库执行 `06_restore_verify.sql`，`B01～B05` 全部为 `PASS`；
 - 备份文件为439,400字节，恢复耗时约7.90秒；SHA-256已记录且未在仓库提交真实密码。
+- `06_backup_incremental_preflight.sql` 的 `BI01～BI05` 已全部为 `PASS`；GTID为`OFF`仅作信息记录，本地按文件位置或时间点恢复；
+- `D_SECURITY_STRATEGY.md` 明确密码哈希、失败锁定、会话超时、SQL注入、敏感数据和密钥管理边界。
 
 最终 `DF01～DF10` 应全部为 `PASS`。
 
